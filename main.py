@@ -2,12 +2,45 @@ import cv2
 import numpy as np
 import imutils
 import pytesseract
+from starlette.responses import StreamingResponse
+import uvicorn
+from fastapi import FastAPI, File, UploadFile
+import io
+import os
+from PIL import Image
+from pdf2image import convert_from_bytes
 import re
+from scipy.ndimage import interpolation as inter
+
+ALLOWED_EXTENSIONS_FILES= {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'pdf', 'tiff'}
+
+app = FastAPI()
 
 pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
 
+@app.post("/predict/", tags=["Predict"], summary="Predict",)
+async def upload(
+        file: UploadFile = File(..., description='Выберите файл для загрузки'),
+):
+    ext = file.filename
+    input_filename = re.findall(r"(jpg|png|jpeg|pdf)$", ext)
+    data = await file.read()
+    if input_filename == ['pdf']:
+        images = convert_from_bytes(data, dpi=300, first_page=0, last_page=1)
+        images = np.array(images)
+        cv2.imshow('ss', images)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+    else:    
+        angled = skew_angle(data)
+        image_resize = resize_image(angled)
+        text = rectangle_image(image_resize)
+        end_text = correct_text(text)
+        return end_text
+
 #Calculate degrees of image, and convert it
-def skew_angle(image):
+def skew_angle(data):
+    image = np.array(Image.open(io.BytesIO(data)))
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     gray = cv2.bitwise_not(gray)
     thresh = cv2.threshold(gray, 0, 255,
@@ -52,7 +85,6 @@ def resize_image(image):
                 area = cv2.contourArea(i)
                 if area > 100:
                     peri = cv2.arcLength(i,True)
-                    approx = cv2.approxPolyDP(i,0.1*peri,True)
                     if area > max_area: #and len(approx)==4:
                             max_area = area
                             indexReturn = index
@@ -60,8 +92,9 @@ def resize_image(image):
 
     indexReturn = biggestRectangle(contours)
     hull = cv2.convexHull(contours[indexReturn])
+    print(len(hull))
     #photo simplification
-    if len(hull) > 10:
+    if 10 < len(hull) < 40 and indexReturn < 10:
         ROIdimensions = hull.reshape(len(hull),2)
 
         rect = np.zeros((4,2), dtype='float32')
@@ -99,6 +132,34 @@ def resize_image(image):
     else:
         return img
 
+#2 function for rotate image in text block
+def correct_skew(image, delta=0.6, limit=5):
+    def determine_score(arr, angle):
+        data = inter.rotate(arr, angle, reshape=False, order=0)
+        histogram = np.sum(data, axis=1)
+        score = np.sum((histogram[1:] - histogram[:-1]) ** 2)
+        return histogram, score
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1] 
+
+    #find image angle
+    scores = []
+    angles = np.arange(-limit, limit + delta, delta)
+    for angle in angles:
+        _, score = determine_score(thresh, angle)
+        scores.append(score)
+
+    best_angle = angles[scores.index(max(scores))]
+
+    #rotate image 
+    (h, w) = image.shape[:2]
+    center = (w // 2, h // 2)
+    M = cv2.getRotationMatrix2D(center, best_angle, 1.0)
+    rotated = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC, \
+              borderMode=cv2.BORDER_REPLICATE)
+
+    return rotated
 
 # marking up rectangles
 def rectangle_image(img):
@@ -106,7 +167,7 @@ def rectangle_image(img):
     image = cv2.resize(image, (1200,900))
     #to gray
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    #preprocess image for best 
+    #preprocess image for best result
     rectKernel = cv2.getStructuringElement(cv2.MORPH_RECT, (16, 10))
     gray = cv2.GaussianBlur(gray, (5, 5), 0)
     blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, rectKernel)
@@ -120,22 +181,20 @@ def rectangle_image(img):
     #find contour
     allContours = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)   
     allContours = imutils.grab_contours(allContours)    
-    idx = 0
     ocr_text = []
     #find block of text
     for contour in allContours:
         x,y,w,h = cv2.boundingRect(contour)
         lenght = len(contour)
         if 10 < lenght < 200 and w > 100:
-            idx += 1
-            print(idx, ':',x,y,w,h, len(contour))
-            new_image = image[y-10:y+(h+1), x-102:x+(w+10)]
-            gray = cv2.cvtColor(new_image, cv2.COLOR_BGR2GRAY)
+            new_image = image[y-10:(y+5)+(h+1), x-102:x+(w+10)]
+            rotated = correct_skew(new_image)
+            gray = cv2.cvtColor(rotated, cv2.COLOR_BGR2GRAY)
             thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
-            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,2))
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
             opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
             invert = 255 - opening
-            custom_config = r'-l eng+rus --psm 6 --oem 1'
+            custom_config = r'-l rus+eng --psm 6 --oem 3'
             text = pytesseract.image_to_string(invert, config=custom_config)
             if re.match(r"(^\d+\D+.+)", text):
                  ocr_text.append(text)
@@ -148,16 +207,38 @@ def correct_text(text):
     text.reverse()
     text = str(text)
     text = re.sub(r'\\n', ' ', text)
-    text = re.sub(r"'", '', text)
-    text = re.sub(r"\[", '', text)
-    text = re.sub(r"\]", '', text)
-    return text
+    text = re.sub(r'"', '', text)
+    text = re.sub(r"[\]\[\—]", '', text)
+    text = re.sub(r"[§|!|']",'',text)
+    text = re.sub(r", 9.+", '', text)
+    text = re.sub(r"}", ')', text)
+    text = re.sub(r" 8.+", '', text)
+    print(text)
+    surname = str(re.findall(r"(1\. \S+ +\S+\s,)", text))
+    surname = re.sub(r"[,|\[\]'\"]", '', surname)
+
+    name_father = str(re.findall(r"(2.+ , )3.", text))
+    name_father = re.sub(r"[,|\[\]'|\"]", '', name_father)
+
+    date_birth = str(re.findall(r"3. [\d]+[\.]\d+.\d+", text))
+    date_birth = re.sub(r"[,|\[\]'\"]", '', date_birth)
+
+    license_date = str(re.findall(r"4.\) \d+\.\d+.\d+", text))
+    license_date = re.sub(r"[,|\[\]'\"]", '', license_date)
+
+    license_number =  str(re.findall(r"5[\.| ] .+", text))
+    license_number = re.sub(r"[,|\[\]'\"]", '', license_number)
+
+    dict = {"Фамилия": f"{surname}",
+        "Имя и отчество": f"{name_father}",
+        "Дата рождения": f"{date_birth}",
+        "Дата получения прав и дата окончания": f"{license_date}",
+        "Серия и номер прав": f"{license_number}"
+    }
+    return dict
 
 # main 
 if __name__ == '__main__':
-    image = cv2.imread('C:/Games/STS/13.jpg')
-    angled = skew_angle(image)
-    image_resize = resize_image(angled)
-    text = rectangle_image(image_resize)
-    end_text = correct_text(text)
-    print(end_text)
+    port = int(os.environ.get('PORT', 8005))
+    uvicorn.run("main:app", host='0.0.0.0', port=port,
+                  log_level="info", reload=True, workers=1)
