@@ -12,8 +12,6 @@ from pdf2image import convert_from_bytes
 import re
 from scipy.ndimage import interpolation as inter
 
-ALLOWED_EXTENSIONS_FILES= {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'pdf', 'tiff'}
-
 app = FastAPI()
 
 pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
@@ -25,22 +23,27 @@ async def upload(
     ext = file.filename
     input_filename = re.findall(r"(jpg|png|jpeg|pdf)$", ext)
     data = await file.read()
+    # if filename have extension like pdf
     if input_filename == ['pdf']:
         images = convert_from_bytes(data, dpi=300, single_file=True)
         for page in images:
             image = np.array(page)
             angled = skew_angle(image)
-            image_resize = resize_image(angled)
-            text = rectangle_image(image_resize)
+            image_resize = perspective_correction(angled)
+            tresh_image = preprocess_image(image_resize)
+            text = recognize_text(image_resize, tresh_image)
             end_text = correct_text(text)
         return end_text
+    # else filename have extension like .jpg,.jpeg,.png
     else:    
         image = np.array(Image.open(io.BytesIO(data)))
         angled = skew_angle(image)
-        image_resize = resize_image(angled)
-        text = rectangle_image(image_resize)
+        image_resize = perspective_correction(angled)
+        tresh_image = preprocess_image(image_resize)
+        text = recognize_text(image_resize, tresh_image)
         end_text = correct_text(text)
         return end_text
+
 
 #Calculate degrees of image, and convert it
 def skew_angle(image):
@@ -65,7 +68,7 @@ def skew_angle(image):
 
 
 #Resize image around contour rectangle
-def resize_image(image):
+def perspective_correction(image):
     img = image
     img = cv2.resize(img, (1200,900))
     gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
@@ -79,23 +82,18 @@ def resize_image(image):
     _, thresh1 = cv2.threshold(gray,75,255,cv2.THRESH_BINARY)
     
     contours, _ = cv2.findContours(thresh1, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    max_area = 0
+    for index in range(len(contours)):
+            i = contours[index]
+            area = cv2.contourArea(i)
+            if area > 100:
+                if area > max_area: #and len(approx)==4:
+                        max_area = area
+                        indexReturn = index
 
-    def biggestRectangle(contours):
-        max_area = 0
-        indexReturn = -1
-        for index in range(len(contours)):
-                i = contours[index]
-                area = cv2.contourArea(i)
-                if area > 100:
-                    peri = cv2.arcLength(i,True)
-                    if area > max_area: #and len(approx)==4:
-                            max_area = area
-                            indexReturn = index
-        return indexReturn
-
-    indexReturn = biggestRectangle(contours)
     hull = cv2.convexHull(contours[indexReturn])
     print(len(hull))
+
     #photo simplification
     if 10 < len(hull) < 40 and indexReturn < 10:
         ROIdimensions = hull.reshape(len(hull),2)
@@ -135,8 +133,10 @@ def resize_image(image):
     else:
         return img
 
+
 #2 function for rotate image in text block
 def correct_skew(image, delta=0.6, limit=5):
+    #score
     def determine_score(arr, angle):
         data = inter.rotate(arr, angle, reshape=False, order=0)
         histogram = np.sum(data, axis=1)
@@ -164,8 +164,9 @@ def correct_skew(image, delta=0.6, limit=5):
 
     return rotated
 
+
 # marking up rectangles
-def rectangle_image(img):
+def preprocess_image(img):
     image = img
     image = cv2.resize(image, (1200,900))
     #to gray
@@ -181,7 +182,12 @@ def rectangle_image(img):
     grad = (grad * 255).astype("uint8")
     grad = cv2.morphologyEx(grad, cv2.MORPH_CLOSE, rectKernel)
     thresh = cv2.threshold(grad, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
-    #find contour
+    return thresh
+
+
+#find contour and text block
+def recognize_text(img,thresh):
+    image = img
     allContours = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)   
     allContours = imutils.grab_contours(allContours)    
     ocr_text = []
@@ -197,46 +203,46 @@ def rectangle_image(img):
             kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
             opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
             invert = 255 - opening
-            custom_config = r'-l rus+eng --psm 6 --oem 3'
+            custom_config = r'-l rus+eng --psm 6 --oem 1'
             text = pytesseract.image_to_string(invert, config=custom_config)
             if re.match(r"(^\d+\D+.+)", text):
                  ocr_text.append(text)
     return ocr_text
 
+
 #for correct text (1.,2. ... n+1)
 def correct_text(text):
     text.reverse()
+    print(text)
     text = str(text)
-    text = re.sub(r'\\n', ' ', text)
-    text = re.sub(r'"', '', text)
-    text = re.sub(r"[\]\[\—]", '', text)
-    text = re.sub(r"[§|!|']",'',text)
+    text = re.sub(r"\\n", ' ', text)
+    text = re.sub(r"[\]\[\—\"§|!|']", '', text)
     text = re.sub(r", 9.+", '', text)
     text = re.sub(r"}", ')', text)
-    text = re.sub(r" 8.+", '', text)
+    text = re.sub(r"8\..+", '', text)
     print(text)
-    surname = str(re.findall(r"(1\. \S+ +\S+\s,)", text))
+    surname = str(re.findall(r"(1\.\s+\S+\s+\S+\s+,)", text))
     surname = re.sub(r"[,|\[\]'\"]", '', surname)
-
-    name_father = str(re.findall(r"(2.+ , )3.", text))
+    print(surname)
+    name_father = str(re.findall(r"(2.+\s,\s)3.", text))
     name_father = re.sub(r"[,|\[\]'|\"]", '', name_father)
 
-    date_birth = str(re.findall(r"3. [\d]+[\.]\d+.\d+", text))
+    date_birth = str(re.findall(r"3.\s[\d]+[\.]\d+.\d+", text))
     date_birth = re.sub(r"[,|\[\]'\"]", '', date_birth)
 
-    license_date = str(re.findall(r"4.\) \d+\.\d+.\d+", text))
+    license_date = str(re.findall(r"4.\)\s\d+\.\d+.\d+", text))
     license_date = re.sub(r"[,|\[\]'\"]", '', license_date)
 
-    license_number =  str(re.findall(r"5[\.| ] .+", text))
+    license_number =  str(re.findall(r"5[\.|\s]\s.+", text))
     license_number = re.sub(r"[,|\[\]'\"]", '', license_number)
 
-    dict = {"Фамилия": f"{surname}",
-        "Имя и отчество": f"{name_father}",
-        "Дата рождения": f"{date_birth}",
-        "Дата получения прав и дата окончания": f"{license_date}",
-        "Серия и номер прав": f"{license_number}"
+    data  = {"Surname": surname,
+        "Name_and_patronymic": name_father,
+        "Date_birth": date_birth,
+        "Date_license_date_expiration": license_date,
+        "series_number": license_number
     }
-    return dict
+    return data
 
 # main 
 if __name__ == '__main__':
