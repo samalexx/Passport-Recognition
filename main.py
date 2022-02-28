@@ -201,8 +201,6 @@ def rectangle_image(img):
             text = pytesseract.image_to_string(invert, config=custom_config)
             if re.match(r"(^\d+\D+.+)", text):
                  ocr_text.append(text)
-            else:
-                print(text)
     return ocr_text
 
 #for correct text (1.,2. ... n+1)
