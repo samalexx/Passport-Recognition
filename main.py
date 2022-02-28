@@ -26,21 +26,24 @@ async def upload(
     input_filename = re.findall(r"(jpg|png|jpeg|pdf)$", ext)
     data = await file.read()
     if input_filename == ['pdf']:
-        images = convert_from_bytes(data, dpi=300, first_page=0, last_page=1)
-        images = np.array(images)
-        cv2.imshow('ss', images)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        images = convert_from_bytes(data, dpi=300, single_file=True)
+        for page in images:
+            image = np.array(page)
+            angled = skew_angle(image)
+            image_resize = resize_image(angled)
+            text = rectangle_image(image_resize)
+            end_text = correct_text(text)
+        return end_text
     else:    
-        angled = skew_angle(data)
+        image = np.array(Image.open(io.BytesIO(data)))
+        angled = skew_angle(image)
         image_resize = resize_image(angled)
         text = rectangle_image(image_resize)
         end_text = correct_text(text)
         return end_text
 
 #Calculate degrees of image, and convert it
-def skew_angle(data):
-    image = np.array(Image.open(io.BytesIO(data)))
+def skew_angle(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     gray = cv2.bitwise_not(gray)
     thresh = cv2.threshold(gray, 0, 255,

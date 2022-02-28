@@ -1,5 +1,7 @@
 .env/*
 .env/pyvenv.cfg
+workspace.code-workspace
+main.cpython-39.pyc
 .env/Lib/site-packages/distutils-precedence.pth
 .env/Lib/site-packages/PIL/__init__.py
 .env/Lib/site-packages/PIL/__main__.py
