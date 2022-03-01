@@ -1,3 +1,4 @@
+from ssl import Options
 import cv2
 import numpy as np
 import imutils
@@ -27,10 +28,8 @@ elif plt == "Linux":
 else:
     print("Unidentified system")
 
-@app.post("/predict/", tags=["Predict"], summary="Predict",)
-async def upload(
-        file: UploadFile = File(..., description='Выберите файл для загрузки'),
-):
+@app.post("/predict/", tags=["Predict"], summary="Predict")
+async def upload(file: UploadFile = File(..., description='Выберите файл для загрузки',)):
     ext = file.filename
     # search extension in filename
     input_filename = re.findall(r"(jpg|png|jpeg|pdf)$", ext)
