@@ -10,37 +10,60 @@ import os
 from PIL import Image
 from pdf2image import convert_from_bytes
 import re
+import platform
 from scipy.ndimage import interpolation as inter
 
 app = FastAPI()
 
-pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
+plt = platform.system()
+if plt == "Windows":
+    pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
+    poppler_path = r'C:/Python38/Lib/poppler/Library/bin'
+    temp_path = r'app/tmp'
+elif plt == "Linux":
+    pytesseract.pytesseract.tesseract_cmd = r'/usr/bin/tesseract'
+    poppler_path = None
+    temp_path = r'app/tmp'
+else:
+    print("Unidentified system")
 
 @app.post("/predict/", tags=["Predict"], summary="Predict",)
 async def upload(
         file: UploadFile = File(..., description='Выберите файл для загрузки'),
 ):
     ext = file.filename
+    # search extension in filename
     input_filename = re.findall(r"(jpg|png|jpeg|pdf)$", ext)
+
     data = await file.read()
     # if filename have extension like pdf
     if input_filename == ['pdf']:
         images = convert_from_bytes(data, dpi=300, single_file=True)
         for page in images:
             image = np.array(page)
+            # aligning the photo to the contour
             angled = skew_angle(image)
+            # perspective correction 
             image_resize = perspective_correction(angled)
+            # preprocessing pictures for text blocks
             tresh_image = preprocess_image(image_resize)
+            # get text from text box 
             text = recognize_text(image_resize, tresh_image)
+            # get the recognized text and return it with a response from the server
             end_text = correct_text(text)
         return end_text
     # else filename have extension like .jpg,.jpeg,.png
     else:    
         image = np.array(Image.open(io.BytesIO(data)))
+        # aligning the photo to the contour
         angled = skew_angle(image)
+        # perspective correction 
         image_resize = perspective_correction(angled)
+        # preprocessing pictures for text blocks
         tresh_image = preprocess_image(image_resize)
+        # get text from text box 
         text = recognize_text(image_resize, tresh_image)
+        # get the recognized text and return it with a response from the server
         end_text = correct_text(text)
         return end_text
 
@@ -129,6 +152,7 @@ def perspective_correction(image):
         transformMatrix = cv2.getPerspectiveTransform(rect, dst)
 
         scan = cv2.warpPerspective(img, transformMatrix, (maxWidth, maxHeight))
+
         return scan
     else:
         return img
@@ -198,6 +222,9 @@ def recognize_text(img,thresh):
         if 10 < lenght < 200 and w > 100:
             new_image = image[y-10:(y+5)+(h+1), x-102:x+(w+10)]
             rotated = correct_skew(new_image)
+            cv2.imshow('rotated',rotated)
+            cv2.waitKey(2000)
+            cv2.destroyAllWindows()
             gray = cv2.cvtColor(rotated, cv2.COLOR_BGR2GRAY)
             thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
             kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
@@ -207,6 +234,8 @@ def recognize_text(img,thresh):
             text = pytesseract.image_to_string(invert, config=custom_config)
             if re.match(r"(^\d+\D+.+)", text):
                  ocr_text.append(text)
+            else:
+                print(text)
     return ocr_text
 
 
@@ -219,13 +248,13 @@ def correct_text(text):
     text = re.sub(r"[\]\[\—\"§|!|']", '', text)
     text = re.sub(r", 9.+", '', text)
     text = re.sub(r"}", ')', text)
-    text = re.sub(r"8\..+", '', text)
+    text = re.sub(r"\s8{1}.+", '', text)
     print(text)
-    surname = str(re.findall(r"(1\.\s+\S+\s+\S+\s+,)", text))
-    surname = re.sub(r"[,|\[\]'\"]", '', surname)
+    surname = str(re.findall(r"(1\.\s+\S+[\s+|\w+\s+]+,)", text))
+    surname = re.sub(r"[,|\[\]'\"1\.]", '', surname)
     print(surname)
     name_father = str(re.findall(r"(2.+\s,\s)3.", text))
-    name_father = re.sub(r"[,|\[\]'|\"]", '', name_father)
+    name_father = re.sub(r"[,|\[\]'\"2\.]", '', name_father)
 
     date_birth = str(re.findall(r"3.\s[\d]+[\.]\d+.\d+", text))
     date_birth = re.sub(r"[,|\[\]'\"]", '', date_birth)
@@ -234,7 +263,7 @@ def correct_text(text):
     license_date = re.sub(r"[,|\[\]'\"]", '', license_date)
 
     license_number =  str(re.findall(r"5[\.|\s]\s.+", text))
-    license_number = re.sub(r"[,|\[\]'\"]", '', license_number)
+    license_number = re.sub(r"[,|\[\]'\"|5\.]", '', license_number)
 
     data  = {"Surname": surname,
         "Name_and_patronymic": name_father,
@@ -242,6 +271,7 @@ def correct_text(text):
         "Date_license_date_expiration": license_date,
         "series_number": license_number
     }
+
     return data
 
 # main 
