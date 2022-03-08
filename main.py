@@ -1,4 +1,3 @@
-from ssl import Options
 import cv2
 import numpy as np
 import imutils
@@ -221,9 +220,6 @@ def recognize_text(img,thresh):
         if 10 < lenght < 200 and w > 100:
             new_image = image[y-10:(y+5)+(h+1), x-102:x+(w+10)]
             rotated = correct_skew(new_image)
-            cv2.imshow('rotated',rotated)
-            cv2.waitKey(2000)
-            cv2.destroyAllWindows()
             gray = cv2.cvtColor(rotated, cv2.COLOR_BGR2GRAY)
             thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
             kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
