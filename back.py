@@ -133,18 +133,18 @@ def recognize_text(rectangles_contour, table):
 def text_correction(text):
     text_to_Str = str(text)
     print(text_to_Str)
-    text_without_symbol = re.sub(r"[\]\[\—\"§|!|'|©|®|_|№|`‘’|›|()|@|=|%|>|\/|-]", '', text_to_Str)
+    text_without_symbol = re.sub(r"[\]\[\—\"§|!|'|©|®|_|№|`‘’|›|()|@|=|%|>|\/|-\|]", '', text_to_Str)
     text_without_kir = re.sub(r"[а-яёa-z]", '', text_without_symbol)
     fixed_text = re.sub(r"[С|C|O|О|A|А]", '', text_without_kir)
     del_letter = re.sub(r"[г-яёГ-Я]",'', fixed_text)
+    print(del_letter)
     category_date = str(re.findall(r"[В|В|8]\W+\d{2}\.\d{2}.\d{4}", del_letter))  
     category_date_sub = re.sub(r"[\[\]|,|']",'', category_date)
-    print(category_date_sub)
     if not category_date_sub.strip():
         data = {
             "Category and date": 'none'
         }
-    else:
+    else: 
         data = {
             "Category and date": category_date_sub
         }
