@@ -43,10 +43,6 @@ def find_rectangle(img):
 
     crop = img[y-5:y+h+5, x-5:x+w+5]
 
-    cv2.imshow('s',crop)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
     return crop
 
 
@@ -135,15 +131,21 @@ def recognize_text(rectangles_contour, table):
     return text_ocr
 
 def text_correction(text):
-    text = str(text)
-    text = re.sub(r"[\]\[\—\"§|!|'|©|®|_|№|`’|›|()|@|=|%|>]", '', text)
-    text = re.sub(r"[а-яёa-z]", '', text)
-    text = re.sub(r"[С|C|O|О|A|А]", '', text)
-    text = re.sub(r"[г-яёГ-Я]",'', text)
-    print(text)
-    category_date = str(re.findall(r"[B|В|8].+\s{1}", text))
-    category_date = re.sub(r"[\[\]|,|']",'', category_date)
-    data = {
-        "Category and date": category_date
-    }
+    text_to_Str = str(text)
+    print(text_to_Str)
+    text_without_symbol = re.sub(r"[\]\[\—\"§|!|'|©|®|_|№|`‘’|›|()|@|=|%|>|\/|-]", '', text_to_Str)
+    text_without_kir = re.sub(r"[а-яёa-z]", '', text_without_symbol)
+    fixed_text = re.sub(r"[С|C|O|О|A|А]", '', text_without_kir)
+    del_letter = re.sub(r"[г-яёГ-Я]",'', fixed_text)
+    category_date = str(re.findall(r"[В|В|8]\W+\d{2}\.\d{2}.\d{4}", del_letter))  
+    category_date_sub = re.sub(r"[\[\]|,|']",'', category_date)
+    print(category_date_sub)
+    if not category_date_sub.strip():
+        data = {
+            "Category and date": 'none'
+        }
+    else:
+        data = {
+            "Category and date": category_date_sub
+        }
     return data
