@@ -4,10 +4,11 @@ import imutils
 import pytesseract
 from starlette.responses import StreamingResponse
 import uvicorn
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, Query, UploadFile
 import io
 import os
 from PIL import Image
+from back import back_side
 from pdf2image import convert_from_bytes
 import re
 import platform
@@ -15,6 +16,7 @@ from scipy.ndimage import interpolation as inter
 
 app = FastAPI()
 
+#select platform
 plt = platform.system()
 if plt == "Windows":
     pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
@@ -27,18 +29,36 @@ elif plt == "Linux":
 else:
     print("Unidentified system")
 
-@app.post("/predict/", tags=["Predict"], summary="Predict")
-async def upload(file: UploadFile = File(..., description='Выберите файл для загрузки',)):
-    ext = file.filename
-    # search extension in filename
-    input_filename = re.findall(r"(jpg|png|jpeg|pdf)$", ext)
 
-    data = await file.read()
-    # if filename have extension like pdf
-    if input_filename == ['pdf']:
-        images = convert_from_bytes(data, dpi=300, single_file=True)
-        for page in images:
-            image = np.array(page)
+@app.post("/predict/", tags=["Predict"], summary="Predict")
+async def upload(file: UploadFile = File(..., description='Выберите файл для загрузки',), 
+                 mode: str = Query("front", enum=["front", "back"], description='Choice doc template')
+):
+    ext = file.filename
+    if mode == 'front':
+        # search extension in filename
+        input_filename = re.findall(r"(jpg|png|jpeg|pdf)$", ext)
+
+        data = await file.read()
+        # if filename have extension like pdf
+        if input_filename == ['pdf']:
+            images = convert_from_bytes(data, dpi=300, single_file=True)
+            for page in images:
+                image = np.array(page)
+                # aligning the photo to the contour
+                angled = skew_angle(image)
+                # perspective correction 
+                image_resize = perspective_correction(angled)
+                # preprocessing pictures for text blocks
+                tresh_image = preprocess_image(image_resize)
+                # get text from text box 
+                text = recognize_text(image_resize, tresh_image)
+                # get the recognized text and return it with a response from the server
+                end_text = correct_text(text)
+            return end_text
+        # else filename have extension like .jpg,.jpeg,.png
+        else:    
+            image = np.array(Image.open(io.BytesIO(data)))
             # aligning the photo to the contour
             angled = skew_angle(image)
             # perspective correction 
@@ -49,22 +69,11 @@ async def upload(file: UploadFile = File(..., description='Выберите фа
             text = recognize_text(image_resize, tresh_image)
             # get the recognized text and return it with a response from the server
             end_text = correct_text(text)
-        return end_text
-    # else filename have extension like .jpg,.jpeg,.png
-    else:    
-        image = np.array(Image.open(io.BytesIO(data)))
-        # aligning the photo to the contour
-        angled = skew_angle(image)
-        # perspective correction 
-        image_resize = perspective_correction(angled)
-        # preprocessing pictures for text blocks
-        tresh_image = preprocess_image(image_resize)
-        # get text from text box 
-        text = recognize_text(image_resize, tresh_image)
-        # get the recognized text and return it with a response from the server
-        end_text = correct_text(text)
-        return end_text
-
+            return end_text
+    elif mode == 'back': 
+        data = await file.read()
+        result = await back_side(data)
+        return result
 
 #Calculate degrees of image, and convert it
 def skew_angle(image):
@@ -268,6 +277,8 @@ def correct_text(text):
     }
 
     return data
+
+
 
 # main 
 if __name__ == '__main__':

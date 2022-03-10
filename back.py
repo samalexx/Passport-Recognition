@@ -6,9 +6,40 @@ import pytesseract
 import numpy as np
 import pytesseract
 import cv2
+from PIL import Image
+import io
 from scipy.ndimage import interpolation as inter
 
 pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
+
+async def back_side(data):
+
+    image = np.array(Image.open(io.BytesIO(data)))
+
+    crop_image = find_rectangle(image)
+
+    rectangles_contour, table = draw_contours(crop_image)
+    cv2.imshow('s',crop_image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+    text = recognize_text(rectangles_contour, table)
+
+    data = text_correction(text)
+
+    return data
+
+
+def text_correction(text):
+    text = str(text)
+    text = re.sub(r"[\]\[\—\"§|!|'|©|®|_|№|`’|›|()|@|=|%]", '', text)
+    text = re.sub(r"[а-яёa-z]", '', text)
+    text = re.sub(r"[С|C|O|О|A|А]", '', text)
+    print(text)
+    category_date = re.findall(r"[B|В|8].+\s{1}", text)
+    data = {
+       "Category and date": category_date
+    }
+    return data
 
 def find_rectangle(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -56,40 +87,9 @@ def correct_skew(img, delta=0.2, limit=10):
               borderMode=cv2.BORDER_REPLICATE)
     return rotated
 
-def sort_contours(cnts, method="left-to-right"):
-	# initialize the reverse flag and sort index
-	reverse = False
-	i = 0
-	# handle if we need to sort in reverse
-	if method == "right-to-left" or method == "bottom-to-top":
-		reverse = True
-	# handle if we are sorting against the y-coordinate rather than
-	# the x-coordinate of the bounding box
-	if method == "top-to-bottom" or method == "bottom-to-top":
-		i = 1
-	# construct the list of bounding boxes and sort them from top to
-	# bottom
-	boundingBoxes = [cv2.boundingRect(c) for c in cnts]
-	(cnts, boundingBoxes) = zip(*sorted(zip(cnts, boundingBoxes),
-		key=lambda b:b[1][i], reverse=reverse))
-	# return the list of sorted contours and bounding boxes
-	return (cnts, boundingBoxes)
-
-def draw_contour(image, c, i):
-	# compute the center of the contour area and draw a circle
-	# representing the center
-	M = cv2.moments(c)
-	cX = int(M["m10"] / M["m00"])
-	cY = int(M["m01"] / M["m00"])
-	# draw the countour number on the image
-	cv2.putText(image, "#{}".format(i + 1), (cX - 20, cY), cv2.FONT_HERSHEY_SIMPLEX,
-		1.0, (255, 255, 255), 2)
-	# return the image with the contour number drawn on it
-	return image
-
 # contour find and draw in input image
 def draw_contours(crop):
-    img = crop[40:120, 0:320]
+    img = crop[40:120, 0:370]
 
     table = correct_skew(img)
 
@@ -144,22 +144,5 @@ def recognize_text(result, table):
             text = pytesseract.image_to_string(invert, config=custom_config)
             text = text.replace("\n", '')
             text_ocr.append(text.capitalize())
-            filename = "C:/Games/STS/box/file_%d.png"%idx
-            cv2.imwrite(filename, invert)
     return text_ocr
-
-image = cv2.imread('C:/Games/STS/box/.jpeg')
-
-crop_image = find_rectangle(image)
-
-rectangles_contour, table = draw_contours(crop_image)
-
-text = recognize_text(rectangles_contour, table)
-
-text = str(text)
-text = re.sub(r"[\]\[\—\"§|!|'|©|®|_|№|`’]", '', text)
-print(text)
-cv2.imshow('C:/Games/STS/box/123.jpeg', table) 
-cv2.waitKey(0)
-cv2.destroyAllWindows()
 
