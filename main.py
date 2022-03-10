@@ -2,11 +2,11 @@ import cv2
 import numpy as np
 import imutils
 import pytesseract
-from starlette.responses import StreamingResponse
 import uvicorn
 from fastapi import FastAPI, File, Query, UploadFile
 import io
 import os
+import uuid
 from PIL import Image
 from back import back_side
 from pdf2image import convert_from_bytes
@@ -38,7 +38,6 @@ async def upload(file: UploadFile = File(..., description='Выберите фа
     if mode == 'front':
         # search extension in filename
         input_filename = re.findall(r"(jpg|png|jpeg|pdf)$", ext)
-
         data = await file.read()
         # if filename have extension like pdf
         if input_filename == ['pdf']:
@@ -71,8 +70,9 @@ async def upload(file: UploadFile = File(..., description='Выберите фа
             end_text = correct_text(text)
             return end_text
     elif mode == 'back': 
-        data = await file.read()
-        result = await back_side(data)
+        file.filename = f"{uuid.uuid4()}.jpg"
+        contents = await file.read()
+        result = await back_side(contents)
         return result
 
 #Calculate degrees of image, and convert it

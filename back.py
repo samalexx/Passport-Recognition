@@ -10,9 +10,9 @@ from PIL import Image
 import io
 from scipy.ndimage import interpolation as inter
 
-async def back_side(data):
+async def back_side(contents):
 
-    image = np.array(Image.open(io.BytesIO(data)))
+    image = np.array(Image.open(io.BytesIO(contents)))
 
     crop_image = find_rectangle(image)
 
@@ -20,25 +20,14 @@ async def back_side(data):
 
     text = recognize_text(rectangles_contour, table)
 
-    data = text_correction(text)
+    ocr_text = text_correction(text)
 
-    return data
+    return ocr_text
 
 
-def text_correction(text):
-    text = str(text)
-    text = re.sub(r"[\]\[\—\"§|!|'|©|®|_|№|`’|›|()|@|=|%|>]", '', text)
-    text = re.sub(r"[а-яёa-z]", '', text)
-    text = re.sub(r"[С|C|O|О|A|А]", '', text)
-    print(text)
-    category_date = re.findall(r"[B|В|8].+\s{1}", text)
-    data = {
-       "Category and date": category_date
-    }
-    return data
 
-def find_rectangle(image):
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+def find_rectangle(img):
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     image_blur = cv2.GaussianBlur(gray, (3,3), 1)
 
@@ -52,7 +41,11 @@ def find_rectangle(image):
     box = np.int0(cv2.boxPoints(rect))
     x,y,w,h = cv2.boundingRect(box)
 
-    crop = image[y-5:y+h+5, x-5:x+w+5]
+    crop = img[y-5:y+h+5, x-5:x+w+5]
+
+    cv2.imshow('s',crop)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
     return crop
 
@@ -85,7 +78,7 @@ def correct_skew(img, delta=0.2, limit=10):
 
 # contour find and draw in input image
 def draw_contours(crop):
-    img = crop[40:120, 0:370]
+    img = crop[40:120, 0:310]
 
     table = correct_skew(img)
 
@@ -108,11 +101,10 @@ def draw_contours(crop):
     cnts = cnts[0] if len(cnts) == 2 else cnts[1]
     for c in cnts:
         cv2.drawContours(result, [c], -1, (0,0,0), 4)
-
     return result, table
 
-def recognize_text(result, table):
-    gray_result = cv2.cvtColor(result, cv2.COLOR_BGR2GRAY)
+def recognize_text(rectangles_contour, table):
+    gray_result = cv2.cvtColor(rectangles_contour, cv2.COLOR_BGR2GRAY)
 
     blur = cv2.GaussianBlur(gray_result, (3,3), 2)
 
@@ -142,3 +134,16 @@ def recognize_text(result, table):
             text_ocr.append(text.capitalize())
     return text_ocr
 
+def text_correction(text):
+    text = str(text)
+    text = re.sub(r"[\]\[\—\"§|!|'|©|®|_|№|`’|›|()|@|=|%|>]", '', text)
+    text = re.sub(r"[а-яёa-z]", '', text)
+    text = re.sub(r"[С|C|O|О|A|А]", '', text)
+    text = re.sub(r"[г-яёГ-Я]",'', text)
+    print(text)
+    category_date = str(re.findall(r"[B|В|8].+\s{1}", text))
+    category_date = re.sub(r"[\[\]|,|']",'', category_date)
+    data = {
+        "Category and date": category_date
+    }
+    return data
