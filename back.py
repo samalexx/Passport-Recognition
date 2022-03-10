@@ -10,8 +10,6 @@ from PIL import Image
 import io
 from scipy.ndimage import interpolation as inter
 
-pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
-
 async def back_side(data):
 
     image = np.array(Image.open(io.BytesIO(data)))
@@ -19,9 +17,7 @@ async def back_side(data):
     crop_image = find_rectangle(image)
 
     rectangles_contour, table = draw_contours(crop_image)
-    cv2.imshow('s',crop_image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+
     text = recognize_text(rectangles_contour, table)
 
     data = text_correction(text)
@@ -31,7 +27,7 @@ async def back_side(data):
 
 def text_correction(text):
     text = str(text)
-    text = re.sub(r"[\]\[\—\"§|!|'|©|®|_|№|`’|›|()|@|=|%]", '', text)
+    text = re.sub(r"[\]\[\—\"§|!|'|©|®|_|№|`’|›|()|@|=|%|>]", '', text)
     text = re.sub(r"[а-яёa-z]", '', text)
     text = re.sub(r"[С|C|O|О|A|А]", '', text)
     print(text)
