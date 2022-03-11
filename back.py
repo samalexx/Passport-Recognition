@@ -26,23 +26,22 @@ async def back_side(contents):
 def find_rectangle(img):
     try:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        image_blur = cv2.GaussianBlur(gray, (3,3), 1)
+
+        obr_image = cv2.Canny(image_blur, 100, 300, 4)
+
+        contours, _ = cv2.findContours(obr_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)   
+
+        c = sorted(contours, key = cv2.contourArea, reverse = True)[0]
+
+        rect = cv2.minAreaRect(c)
+        box = np.int0(cv2.boxPoints(rect))
+        x,y,w,h = cv2.boundingRect(box)
+
+        crop = img[y-5:y+h+5, x-5:x+w+5]
+        return crop
     except cv2.error:
         return {"Image error":"Photo channels have been disrupted there are highlights in the photo"}
-    image_blur = cv2.GaussianBlur(gray, (3,3), 1)
-
-    obr_image = cv2.Canny(image_blur, 100, 300, 4)
-
-    contours, _ = cv2.findContours(obr_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)   
-
-    c = sorted(contours, key = cv2.contourArea, reverse = True)[0]
-
-    rect = cv2.minAreaRect(c)
-    box = np.int0(cv2.boxPoints(rect))
-    x,y,w,h = cv2.boundingRect(box)
-
-    crop = img[y-5:y+h+5, x-5:x+w+5]
-
-    return crop
 
 
 def correct_skew(img, delta=0.2, limit=10):

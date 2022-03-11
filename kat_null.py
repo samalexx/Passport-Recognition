@@ -1,3 +1,4 @@
+
 import re
 import cv2
 import pytesseract
@@ -122,7 +123,10 @@ def recognize_text_kat(text):
     del_letter = re.sub(r"[г-яёГ-Я]",'', fixed_text)
     category_date = str(re.findall(r"\s\d{4}\s", del_letter))
     category_date_sub = re.sub(r"[\[\]|,|']",'', category_date)  
-    data = {
-            "Category and date": "01.01."+category_date_sub
-    }
+    if not category_date_sub.strip():
+        return {"Image error":"Photo channels have been disrupted there are highlights in the photo"}
+    else:
+        data = {
+                "Category and date": "01.01."+category_date_sub
+        }
     return data
