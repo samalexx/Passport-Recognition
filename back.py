@@ -1,11 +1,8 @@
 import re
-import cv2
-import numpy as np
-import cv2
-import pytesseract
 import numpy as np
 import pytesseract
 import cv2
+from kat_null import kat_is_zero
 from PIL import Image
 import io
 from scipy.ndimage import interpolation as inter
@@ -20,15 +17,17 @@ async def back_side(contents):
 
     text = recognize_text(rectangles_contour, table)
 
-    ocr_text = text_correction(text)
+    ocr_text = text_correction(text,image)
 
     return ocr_text
 
 
 
 def find_rectangle(img):
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
+    try:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    except cv2.error:
+        return {"Image error":"Photo channels have been disrupted there are highlights in the photo"}
     image_blur = cv2.GaussianBlur(gray, (3,3), 1)
 
     obr_image = cv2.Canny(image_blur, 100, 300, 4)
@@ -74,8 +73,7 @@ def correct_skew(img, delta=0.2, limit=10):
 
 # contour find and draw in input image
 def draw_contours(crop):
-    img = crop[40:120, 0:310]
-
+    img = crop[40:120, 0:350]
     table = correct_skew(img)
 
     table = cv2.resize(table, (500,300))
@@ -129,21 +127,19 @@ def recognize_text(rectangles_contour, table):
             text = text.replace("\n", '')
             text_ocr.append(text.capitalize())
     return text_ocr
+    
 
-def text_correction(text):
+def text_correction(text, img):
     text_to_Str = str(text)
-    print(text_to_Str)
     text_without_symbol = re.sub(r"[\]\[\—\"§|!|'|©|®|_|№|`‘’|›|()|@|=|%|>|\/|-\|]", '', text_to_Str)
-    text_without_kir = re.sub(r"[а-яёa-z]", '', text_without_symbol)
+    text_without_kir = re.sub(r"[а-бё]", '', text_without_symbol)
     fixed_text = re.sub(r"[С|C|O|О|A|А]", '', text_without_kir)
     del_letter = re.sub(r"[г-яёГ-Я]",'', fixed_text)
-    print(del_letter)
-    category_date = str(re.findall(r"[В|В|8]\W+\d{2}\.\d{2}.\d{4}", del_letter))  
+    category_date = str(re.findall(r"[В|В|в]{1}\W+\d{2}\.\d{2}.\d{4}", del_letter))  
     category_date_sub = re.sub(r"[\[\]|,|']",'', category_date)
     if not category_date_sub.strip():
-        data = {
-            "Category and date": 'none'
-        }
+        data = kat_is_zero(img)
+        return data
     else: 
         data = {
             "Category and date": category_date_sub
