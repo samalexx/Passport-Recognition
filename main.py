@@ -6,8 +6,8 @@ import uvicorn
 from fastapi import FastAPI, File, Query, UploadFile
 import io
 import os
-import uuid
 from PIL import Image
+import uuid
 from back import back_side
 from pdf2image import convert_from_bytes
 import re

@@ -131,6 +131,7 @@ def recognize_text(rectangles_contour, table):
 
 def text_correction(text, img):
     text_to_Str = str(text)
+    print(text_to_Str)
     text_without_symbol = re.sub(r"[\]\[\—\"§|!|'|©|®|_|№|`‘’|›|()|@|=|%|>|\/|-\|]", '', text_to_Str)
     text_without_kir = re.sub(r"[а-бё]", '', text_without_symbol)
     fixed_text = re.sub(r"[С|C|O|О|A|А]", '', text_without_kir)
