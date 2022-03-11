@@ -130,18 +130,28 @@ def recognize_text(rectangles_contour, table):
 
 def text_correction(text, img):
     text_to_Str = str(text)
-    print(text_to_Str)
-    text_without_symbol = re.sub(r"[\]\[\—\"§|!|'|©|®|_|№|`‘’|›|()|@|=|%|>|\/|-\|]", '', text_to_Str)
-    text_without_kir = re.sub(r"[а-бё]", '', text_without_symbol)
-    fixed_text = re.sub(r"[С|C|O|О|A|А]", '', text_without_kir)
-    del_letter = re.sub(r"[г-яёГ-Я]",'', fixed_text)
-    category_date = str(re.findall(r"[В|В|в]{1}\W+\d{2}\.\d{2}.\d{4}", del_letter))  
+    text_without_symbol = re.sub(r"[^ЁёА-Яа-яA-z0-9\.\,]", '', text_to_Str)
+    del_letter = re.sub(r"[г-яёГ-Я]",'', text_without_symbol)
+    fixed_symbols = re.sub(r"[\_|\[\]\|]", ' ', del_letter)
+    category_date = str(re.findall(r"[В|В|в]{1}\W+\d{2}\.\d{2}.\d{4}", fixed_symbols))  
     category_date_sub = re.sub(r"[\[\]|,|']",'', category_date)
     if not category_date_sub.strip():
         data = kat_is_zero(img)
         return data
     else: 
-        data = {
+        if category_date_sub == str(re.match(r"[В|В|в]{1}\W+\d{2}\.\d{2}.\d{4}", category_date_sub)):
+            text.reverse()
+            text_to_str = str(text)
+            text_without_symbol1 = re.sub(r"[^ЁёА-Яа-яA-z0-9\.\,]", '', text_to_str)
+            del_letter1 = re.sub(r"[г-яёГ-Я]",'', text_without_symbol1)
+            fixed_symbols1 = re.sub(r"[\_|\[\]\|]", ' ', del_letter1)
+            category_date1 = str(re.findall(r"[В|В|в]{1}\W+\d{2}\.\d{2}.\d{4}", fixed_symbols1))  
+            category_date_sub1 = re.sub(r"[\[\]|,|']",'', category_date1)
+            data = {
+                "Category and date": category_date_sub1
+            }
+        else:
+            data = {
             "Category and date": category_date_sub
-        }
+            }
     return data
