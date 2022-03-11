@@ -117,11 +117,8 @@ def find_text(img, thresh):
 
 def recognize_text_kat(text):
     text_to_Str = str(text)
-    text_without_symbol = re.sub(r"[\]\[\—\"§|!|'|©|®|_|№|`‘’|›|()|@|=|%|>|\/|-\|]", '', text_to_Str)
-    text_without_kir = re.sub(r"[а-яёa-z]", '', text_without_symbol)
-    fixed_text = re.sub(r"[С|C|O|О|A|А]", '', text_without_kir)
-    del_letter = re.sub(r"[г-яёГ-Я]",'', fixed_text)
-    category_date = str(re.findall(r"\s\d{4}", del_letter))
+    text_without_symbol = re.sub(r"[^\d\s]", '', text_to_Str)
+    category_date = str(re.findall(r"\s\d{4}", text_without_symbol))
     category_date_sub = re.sub(r"[\[\]|,|']",'', category_date)  
     if not category_date_sub.strip():
         return {"Image error":"Photo channels have been disrupted there are highlights in the photo"}
