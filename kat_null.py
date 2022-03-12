@@ -6,7 +6,7 @@ import numpy as np
 import cv2
 import imutils
 from scipy.ndimage import interpolation as inter
-
+from main import correct_skew1
 
 def kat_is_zero(img):
 
@@ -19,35 +19,6 @@ def kat_is_zero(img):
     replace_text = recognize_text_kat(blocks)
 
     return replace_text
-
-
-def correct_skew(img, delta=0.2, limit=10):
-    image = img
-    def determine_score(arr, angle):
-        data = inter.rotate(arr, angle, reshape=False, order=0)
-        histogram = np.sum(data, axis=1)
-        score = np.sum((histogram[1:] - histogram[:-1]) ** 2)
-        return histogram, score
-    try:
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    except cv2.error:
-        return {"Image error":"Photo channels have been disrupted there are highlights in the photo"}
-    thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1] 
-
-    scores = []
-    angles = np.arange(-limit, limit + delta, delta)
-    for angle in angles:
-        _, score = determine_score(thresh, angle)
-        scores.append(score)
-
-    best_angle = angles[scores.index(max(scores))]
-
-    (h, w) = image.shape[:2]
-    center = (w // 2, h // 2)
-    M = cv2.getRotationMatrix2D(center, best_angle, 1.0)
-    rotated = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC,
-              borderMode=cv2.BORDER_REPLICATE)
-    return rotated
 
 def preprocess(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -65,7 +36,7 @@ def preprocess(img):
     x,y,w,h = cv2.boundingRect(box)
 
     crop = img[y-200:y+h+100, x:x+w-(int((x/100)*80))]
-    crop = correct_skew(crop, 0.2)
+    crop = correct_skew1(crop, 0.2)
     return crop
 
 def text_block(image):

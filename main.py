@@ -8,9 +8,9 @@ import io
 import os
 from PIL import Image
 import uuid
-from back import back_side
 from pdf2image import convert_from_bytes
 import re
+import back_side 
 import platform
 from scipy.ndimage import interpolation as inter
 
@@ -32,8 +32,7 @@ else:
 
 @app.post("/predict/", tags=["Predict"], summary="Predict")
 async def upload(file: UploadFile = File(..., description='Выберите файл для загрузки',), 
-                 mode: str = Query("front", enum=["front", "back"], description='Choice doc template')
-):
+                 mode: str = Query("front", enum=["front", "back"], description='Choice doc template')):
     ext = file.filename
     if mode == 'front':
         # search extension in filename
@@ -72,7 +71,7 @@ async def upload(file: UploadFile = File(..., description='Выберите фа
     elif mode == 'back': 
         file.filename = f"{uuid.uuid4()}.jpg"
         contents = await file.read()
-        result = await back_side(contents)
+        result = await back_side.side_main(contents)
         return result
 
 #Calculate degrees of image, and convert it
@@ -166,7 +165,7 @@ def perspective_correction(image):
 
 
 #2 function for rotate image in text block
-def correct_skew(image, delta=0.6, limit=5):
+def correct_skew1(image, delta=0.6, limit=5):
     #score
     def determine_score(arr, angle):
         data = inter.rotate(arr, angle, reshape=False, order=0)
@@ -228,7 +227,7 @@ def recognize_text(img,thresh):
         lenght = len(contour)
         if 10 < lenght < 200 and w > 100:
             new_image = image[y-10:(y+5)+(h+1), x-102:x+(w+10)]
-            rotated = correct_skew(new_image)
+            rotated = correct_skew1(new_image)
             gray = cv2.cvtColor(rotated, cv2.COLOR_BGR2GRAY)
             thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
             kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))

@@ -5,15 +5,20 @@ import cv2
 from kat_null import kat_is_zero
 from PIL import Image
 import io
+from main import correct_skew1
 from scipy.ndimage import interpolation as inter
 
-async def back_side(contents):
+async def side_main(contents):
 
     image = np.array(Image.open(io.BytesIO(contents)))
 
     crop_image = find_rectangle(image)
-
+    
     rectangles_contour, table = draw_contours(crop_image)
+
+    cv2.imshow('s',table)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
     text = recognize_text(rectangles_contour, table)
 
@@ -44,36 +49,10 @@ def find_rectangle(img):
         return {"Image error":"Photo channels have been disrupted there are highlights in the photo"}
 
 
-def correct_skew(img, delta=0.2, limit=10):
-    image = img
-    def determine_score(arr, angle):
-        data = inter.rotate(arr, angle, reshape=False, order=0)
-        histogram = np.sum(data, axis=1)
-        score = np.sum((histogram[1:] - histogram[:-1]) ** 2)
-        return histogram, score
-
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1] 
-
-    scores = []
-    angles = np.arange(-limit, limit + delta, delta)
-    for angle in angles:
-        _, score = determine_score(thresh, angle)
-        scores.append(score)
-
-    best_angle = angles[scores.index(max(scores))]
-
-    (h, w) = image.shape[:2]
-    center = (w // 2, h // 2)
-    M = cv2.getRotationMatrix2D(center, best_angle, 1.0)
-    rotated = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC,
-              borderMode=cv2.BORDER_REPLICATE)
-    return rotated
-
 # contour find and draw in input image
 def draw_contours(crop):
     img = crop[40:120, 0:350]
-    table = correct_skew(img)
+    table = correct_skew1(img, 0.2, 10)
 
     table = cv2.resize(table, (500,300))
 
@@ -114,7 +93,7 @@ def recognize_text(rectangles_contour, table):
             cv2.rectangle(table, (x, y), (x + w, y + h), (36,255,12), 2)
             # cv2.putText(table, f'{idx}', (x,y), cv2.FONT_HERSHEY_COMPLEX, 0.7, (255,255,255), 2)
             new_image = table[y-2:y+h+2, x-2:x+w+2]
-            new_image = correct_skew(new_image, 0.5, 5)
+            new_image = correct_skew1(new_image, 0.5, 5)
             img = cv2.resize(new_image, (355, 75))
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
