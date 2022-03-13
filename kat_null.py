@@ -32,6 +32,7 @@ def preprocess(img):
     c = sorted(contours, key = cv2.contourArea, reverse = True)[0]
 
     rect = cv2.minAreaRect(c)
+    print(rect)
     box = np.int0(cv2.boxPoints(rect))
     x,y,w,h = cv2.boundingRect(box)
 
@@ -89,7 +90,7 @@ def find_text(img, thresh):
 def recognize_text_kat(text):
     text_to_Str = str(text)
     text_without_symbol = re.sub(r"[^\d\s]", '', text_to_Str)
-    category_date = str(re.findall(r"\s\d{4}", text_without_symbol))
+    category_date = str(re.findall(r"\s\d{4}\s", text_without_symbol))
     category_date_sub = re.sub(r"[\[\]|,|']",'', category_date)  
     if not category_date_sub.strip():
         return {"Image error":"Photo channels have been disrupted there are highlights in the photo"}
