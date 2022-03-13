@@ -40,8 +40,7 @@ def find_rectangle(img):
         rect = cv2.minAreaRect(c)
         box = np.int0(cv2.boxPoints(rect))
         x,y,w,h = cv2.boundingRect(box)
-        area = cv2.contourArea(c)
-        print(area)
+
         crop = img[y-5:y+h+5, x-5:x+w+5]
         return crop
     except cv2.error:
