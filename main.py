@@ -1,4 +1,7 @@
+from tkinter import dnd
 import cv2
+from cv2 import THRESH_OTSU
+from cv2 import invert
 import numpy as np
 import imutils
 import pytesseract
@@ -222,23 +225,30 @@ def recognize_text(img,thresh):
     allContours = imutils.grab_contours(allContours)    
     ocr_text = []
     #find block of text
+    idx = 0
     for contour in allContours:
         x,y,w,h = cv2.boundingRect(contour)
         lenght = len(contour)
-        if 10 < lenght < 200 and w > 100:
+        if w > 50:
+            idx+=1
             new_image = image[y-10:(y+5)+(h+1), x-102:x+(w+10)]
-            rotated = correct_skew1(new_image)
+            try:
+                rotated = correct_skew1(new_image)
+            except:
+                pass
             gray = cv2.cvtColor(rotated, cv2.COLOR_BGR2GRAY)
-            thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+            thresh1 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
             kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
-            opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
+            opening = cv2.morphologyEx(thresh1, cv2.MORPH_OPEN, kernel, iterations=1)
             invert = 255 - opening
+            filename = "C:/Games/New/file_%d.png"%idx
+            cv2.imwrite(filename, rotated)
             custom_config = r'-l rus+eng --psm 6 --oem 1'
             text = pytesseract.image_to_string(invert, config=custom_config)
             if re.match(r"(^\d+\D+.+)", text):
                  ocr_text.append(text)
             else:
-                print(text)
+                pass
     return ocr_text
 
 
@@ -246,27 +256,7 @@ def recognize_text(img,thresh):
 def correct_text(text):
     text.reverse()
     print(text)
-    text = str(text)
-    text = re.sub(r"\\n", ' ', text)
-    text = re.sub(r"[\]\[\—\"§|!|']", '', text)
-    text = re.sub(r", 9.+", '', text)
-    text = re.sub(r"}", ')', text)
-    text = re.sub(r"\s8{1}.+", '', text)
-    print(text)
-    surname = str(re.findall(r"(1\.\s+\S+[\s+|\w+\s+]+,)", text))
-    surname = re.sub(r"[,|\[\]'\"1\.]", '', surname)
-    print(surname)
-    name_father = str(re.findall(r"(2.+\s,\s)3.", text))
-    name_father = re.sub(r"[,|\[\]'\"2\.]", '', name_father)
-
-    date_birth = str(re.findall(r"3.\s[\d]+[\.]\d+.\d+", text))
-    date_birth = re.sub(r"[,|\[\]'\"]", '', date_birth)
-
-    license_date = str(re.findall(r"4.\)\s\d+\.\d+.\d+", text))
-    license_date = re.sub(r"[,|\[\]'\"]", '', license_date)
-
-    license_number =  str(re.findall(r"5[\.|\s]\s.+", text))
-    license_number = re.sub(r"[,|\[\]'\"|5\.]", '', license_number)
+    
 
     data  = {"Surname": surname,
         "Name_and_patronymic": name_father,
