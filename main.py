@@ -123,47 +123,48 @@ def perspective_correction(image):
                         indexReturn = index
 
     hull = cv2.convexHull(contours[indexReturn])
-
+    print(len(hull), indexReturn)
 
     #photo simplification
-    if 10 < len(hull) < 40 and indexReturn < 10:
-        ROIdimensions = hull.reshape(len(hull),2)
+    ROIdimensions = hull.reshape(len(hull),2)
 
-        rect = np.zeros((4,2), dtype='float32')
-        
-        s = np.sum(ROIdimensions, axis=1)
-        rect[0] = ROIdimensions[np.argmin(s)]
-        rect[2] = ROIdimensions[np.argmax(s)]
-
+    rect = np.zeros((4,2), dtype='float32')
     
-        diff = np.diff(ROIdimensions, axis=1)
-        rect[1] = ROIdimensions[np.argmin(diff)]
-        rect[3] = ROIdimensions[np.argmax(diff)]
-
-        (tl, tr, br, bl) = rect
-
-        widthA = np.sqrt((tl[0] - tr[0])**2 + (tl[1] - tr[1])**2 )
-        widthB = np.sqrt((bl[0] - br[0])**2 + (bl[1] - br[1])**2 )
-        maxWidth = max(int(widthA), int(widthB))
-
-        heightA = np.sqrt((tl[0] - bl[0])**2 + (tl[1] - bl[1])**2 )
-        heightB = np.sqrt((tr[0] - br[0])**2 + (tr[1] - br[1])**2 )
-        maxHeight = max(int(heightA), int(heightB))
-
-        dst = np.array([
-            [0,0],
-            [maxWidth-1, 0],
-            [maxWidth-1, maxHeight-1],
-            [0, maxHeight-1]], dtype="float32")
+    s = np.sum(ROIdimensions, axis=1)
+    rect[0] = ROIdimensions[np.argmin(s)]
+    rect[2] = ROIdimensions[np.argmax(s)]
 
 
-        transformMatrix = cv2.getPerspectiveTransform(rect, dst)
+    diff = np.diff(ROIdimensions, axis=1)
+    rect[1] = ROIdimensions[np.argmin(diff)]
+    rect[3] = ROIdimensions[np.argmax(diff)]
 
-        scan = cv2.warpPerspective(img, transformMatrix, (maxWidth, maxHeight))
+    (tl, tr, br, bl) = rect
 
-        return scan
-    else:
-        return img
+    widthA = np.sqrt((tl[0] - tr[0])**2 + (tl[1] - tr[1])**2 )
+    widthB = np.sqrt((bl[0] - br[0])**2 + (bl[1] - br[1])**2 )
+    maxWidth = max(int(widthA), int(widthB))
+
+    heightA = np.sqrt((tl[0] - bl[0])**2 + (tl[1] - bl[1])**2 )
+    heightB = np.sqrt((tr[0] - br[0])**2 + (tr[1] - br[1])**2 )
+    maxHeight = max(int(heightA), int(heightB))
+
+    dst = np.array([
+        [0,0],
+        [maxWidth-1, 0],
+        [maxWidth-1, maxHeight-1],
+        [0, maxHeight-1]], dtype="float32")
+
+
+    transformMatrix = cv2.getPerspectiveTransform(rect, dst)
+
+    scan = cv2.warpPerspective(img, transformMatrix, (maxWidth, maxHeight))
+
+    cv2.imshow('s',scan)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+    return scan
 
 
 #2 function for rotate image in text block
@@ -262,18 +263,18 @@ def correct_text(text):
     main_text = re.sub(r'}', ')', main_text)
     text_without_8 = re.sub(r'\s8{1}[\.\s].+', '', main_text)
     print(text_without_8)
-    surname = str(re.findall(r"\s1\.+\W+\S+\S\s+\w+", text_without_8))
+    surname = str(re.findall(r"\s[1t]\.+\W+\S+\S\s+\w+", text_without_8))
     surname = re.sub(r"[,|\[\]'\"]", '', surname)
 
-    name_father = str(re.findall(r"\s2[\.\s]+\S+\s\S+\s+\S+\s\S+", text_without_8)[0])
-    name_father = re.sub(r"[^а-яА-Я\s]", '', name_father)
+    name_father = str(re.findall(r"\s2[\.\s]+\S+\s\S+\s+\w+\s\w+", text_without_8))
+    name_father = re.sub(r"[^а-яА-Яa-zA-Z\s]", '', name_father)
 
     date_birth = str(re.findall(r"\s3[\.\s]+\d{2}\.\d{2}\.\d{4}", text_without_8)[0])
 
     license_date = str(re.findall(r"\s4[aабb6]\)\s\d{2}\.\d{2}\.\d{4}", text_without_8))
     license_date = re.sub(r"[,|\[\]'\"]", '', license_date)
 
-    license_number =  str(re.findall(r"\s5[\.\s]+[\d][\s+\d+]+\s", text_without_8)[0])
+    license_number =  str(re.findall(r"\s5[\.\s]+[\d][\s+\d+]+\s", text_without_8))
     license_number = re.sub(r"[,|\[\]'\"|]", '', license_number)
     data  = {"Surname": surname,
         "Name_and_patronymic": name_father,
