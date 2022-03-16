@@ -1,3 +1,5 @@
+from ast import Index
+from datetime import date
 from tkinter import dnd
 import cv2
 from cv2 import THRESH_OTSU
@@ -124,47 +126,47 @@ def perspective_correction(image):
 
     hull = cv2.convexHull(contours[indexReturn])
     print(len(hull), indexReturn)
-
+    x,y,w,h = cv2.boundingRect(hull)
+    new_image = image[y:y+h, x:x+w]
     #photo simplification
-    ROIdimensions = hull.reshape(len(hull),2)
+    if 10 < len(hull) < 40 and indexReturn < 10:
+        ROIdimensions = hull.reshape(len(hull),2)
 
-    rect = np.zeros((4,2), dtype='float32')
-    
-    s = np.sum(ROIdimensions, axis=1)
-    rect[0] = ROIdimensions[np.argmin(s)]
-    rect[2] = ROIdimensions[np.argmax(s)]
-
-
-    diff = np.diff(ROIdimensions, axis=1)
-    rect[1] = ROIdimensions[np.argmin(diff)]
-    rect[3] = ROIdimensions[np.argmax(diff)]
-
-    (tl, tr, br, bl) = rect
-
-    widthA = np.sqrt((tl[0] - tr[0])**2 + (tl[1] - tr[1])**2 )
-    widthB = np.sqrt((bl[0] - br[0])**2 + (bl[1] - br[1])**2 )
-    maxWidth = max(int(widthA), int(widthB))
-
-    heightA = np.sqrt((tl[0] - bl[0])**2 + (tl[1] - bl[1])**2 )
-    heightB = np.sqrt((tr[0] - br[0])**2 + (tr[1] - br[1])**2 )
-    maxHeight = max(int(heightA), int(heightB))
-
-    dst = np.array([
-        [0,0],
-        [maxWidth-1, 0],
-        [maxWidth-1, maxHeight-1],
-        [0, maxHeight-1]], dtype="float32")
+        rect = np.zeros((4,2), dtype='float32')
+        
+        s = np.sum(ROIdimensions, axis=1)
+        rect[0] = ROIdimensions[np.argmin(s)]
+        rect[2] = ROIdimensions[np.argmax(s)]
 
 
-    transformMatrix = cv2.getPerspectiveTransform(rect, dst)
+        diff = np.diff(ROIdimensions, axis=1)
+        rect[1] = ROIdimensions[np.argmin(diff)]
+        rect[3] = ROIdimensions[np.argmax(diff)]
 
-    scan = cv2.warpPerspective(img, transformMatrix, (maxWidth, maxHeight))
+        (tl, tr, br, bl) = rect
 
-    cv2.imshow('s',scan)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+        widthA = np.sqrt((tl[0] - tr[0])**2 + (tl[1] - tr[1])**2 )
+        widthB = np.sqrt((bl[0] - br[0])**2 + (bl[1] - br[1])**2 )
+        maxWidth = max(int(widthA), int(widthB))
 
-    return scan
+        heightA = np.sqrt((tl[0] - bl[0])**2 + (tl[1] - bl[1])**2 )
+        heightB = np.sqrt((tr[0] - br[0])**2 + (tr[1] - br[1])**2 )
+        maxHeight = max(int(heightA), int(heightB))
+
+        dst = np.array([
+            [0,0],
+            [maxWidth-1, 0],
+            [maxWidth-1, maxHeight-1],
+            [0, maxHeight-1]], dtype="float32")
+
+
+        transformMatrix = cv2.getPerspectiveTransform(rect, dst)
+
+        scan = cv2.warpPerspective(img, transformMatrix, (maxWidth, maxHeight))
+
+        return scan
+    else:
+        return img
 
 
 #2 function for rotate image in text block
@@ -249,7 +251,10 @@ def recognize_text(img,thresh):
             text = text.replace("\n", ' ')
             text2 = text2.replace("\n", ' ')
             text_mass = text+text2
-            ocr_text.append(text_mass)
+            if re.match(r"^\w", text_mass):
+                 ocr_text.append(text_mass)
+            else:
+                print(text)
 
     return ocr_text
 
@@ -257,29 +262,39 @@ def recognize_text(img,thresh):
 #for correct text (1.,2. ... n+1)
 def correct_text(text):
     text.reverse()
-    print(text)
     text1 = str(text)
     main_text = re.sub(r'[^\d\wа-яА-Я\s),\.\}]', '', text1)
     main_text = re.sub(r'}', ')', main_text)
     text_without_8 = re.sub(r'\s8{1}[\.\s].+', '', main_text)
-    print(text_without_8)
-    surname = str(re.findall(r"\s[1t]\.+\W+\S+\S\s+\w+", text_without_8))
-    surname = re.sub(r"[,|\[\]'\"]", '', surname)
 
-    name_father = str(re.findall(r"\s2[\.\s]+\S+\s\S+\s+\w+\s\w+", text_without_8))
-    name_father = re.sub(r"[^а-яА-Яa-zA-Z\s]", '', name_father)
+    surname = str(re.findall(r"(1\.\s+\S+[\s|\w\s]+)", text_without_8))
+    surname_rus = (re.sub(r"[^а-яА-Я\s]", '', surname)).strip()
+    surname_eng = str(re.findall(r"[A-Z]+", surname)[0])
+
+    name_father = str(re.findall(r"2\.\s+\D+,", text_without_8))
+    name_father_rus = (re.sub(r"[^а-яА-Я\s]", '', name_father)).strip()
+    namefather_eng = str(re.findall(r"[A-Z]+", name_father))
+    namefather_eng = re.sub(r"[,|\[\]'\"]", '', namefather_eng)
 
     date_birth = str(re.findall(r"\s3[\.\s]+\d{2}\.\d{2}\.\d{4}", text_without_8)[0])
+    date_birth1 = re.sub(r"[,|\[\]'\"]", '', date_birth)
+    date_birth = str(re.findall(r"\d{2}.\d{2}.\d{4}", date_birth1))
+    date_birth = re.sub(r"[,|\[\]'\"]", '', date_birth)
 
-    license_date = str(re.findall(r"\s4[aабb6]\)\s\d{2}\.\d{2}\.\d{4}", text_without_8))
+    license_date = str(re.findall(r"4[aа]\)\s\d+\.\d+.\d+", text_without_8))
+    license_date1 = re.sub(r"[,|\[\]'\"]", '', license_date)
+    license_date = str(re.findall(r"\d{2}.\d{2}.\d{4}", license_date1))
     license_date = re.sub(r"[,|\[\]'\"]", '', license_date)
+    
+    license_number = str(re.findall(r"\d{10}", text_without_8))
+    license_number = (re.sub(r"[,|\[\]'\"]", '', license_number)).strip()
 
-    license_number =  str(re.findall(r"\s5[\.\s]+[\d][\s+\d+]+\s", text_without_8))
-    license_number = re.sub(r"[,|\[\]'\"|]", '', license_number)
-    data  = {"Surname": surname,
-        "Name_and_patronymic": name_father,
-        "Date_birth": date_birth,
-        "Date_license_date_expiration": license_date,
+    data  = {"surname_rus": surname_rus,
+        "surname_eng": surname_eng,
+        "firtsname_rus": name_father_rus,
+        "firstname_eng": namefather_eng,
+        "birthday": date_birth,
+        "date_license": license_date,
         "series_number": license_number
     }
 
