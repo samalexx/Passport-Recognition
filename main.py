@@ -1,4 +1,9 @@
+from ast import Index
+from datetime import date
+from tkinter import dnd
 import cv2
+from cv2 import THRESH_OTSU
+from cv2 import invert
 import numpy as np
 import imutils
 import pytesseract
@@ -82,7 +87,6 @@ def skew_angle(image):
         cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
     coords = np.column_stack(np.where(thresh > 0))
     angle = cv2.minAreaRect(coords)[-1]
-    print(angle)
     if angle < -45:
         angle = -(90 + angle)
     elif angle == 90:
@@ -121,8 +125,9 @@ def perspective_correction(image):
                         indexReturn = index
 
     hull = cv2.convexHull(contours[indexReturn])
-    print(len(hull))
-
+    print(len(hull), indexReturn)
+    x,y,w,h = cv2.boundingRect(hull)
+    new_image = image[y:y+h, x:x+w]
     #photo simplification
     if 10 < len(hull) < 40 and indexReturn < 10:
         ROIdimensions = hull.reshape(len(hull),2)
@@ -133,7 +138,7 @@ def perspective_correction(image):
         rect[0] = ROIdimensions[np.argmin(s)]
         rect[2] = ROIdimensions[np.argmax(s)]
 
-    
+
         diff = np.diff(ROIdimensions, axis=1)
         rect[1] = ROIdimensions[np.argmin(diff)]
         rect[3] = ROIdimensions[np.argmax(diff)]
@@ -222,56 +227,74 @@ def recognize_text(img,thresh):
     allContours = imutils.grab_contours(allContours)    
     ocr_text = []
     #find block of text
+    idx = 0
     for contour in allContours:
         x,y,w,h = cv2.boundingRect(contour)
         lenght = len(contour)
-        if 10 < lenght < 200 and w > 100:
+        if 50 < w < 500:
+            idx += 1
             new_image = image[y-10:(y+5)+(h+1), x-102:x+(w+10)]
-            rotated = correct_skew1(new_image)
+            # new_image = cv2.resize(new_image, ())
+            try:
+                rotated = correct_skew1(new_image, 0.5)
+            except:
+                pass
             gray = cv2.cvtColor(rotated, cv2.COLOR_BGR2GRAY)
-            thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+            thresh1 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
             kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
-            opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
+            opening = cv2.morphologyEx(thresh1, cv2.MORPH_OPEN, kernel, iterations=1)
             invert = 255 - opening
-            custom_config = r'-l rus+eng --psm 6 --oem 1'
+            custom_config = r'-l rus+eng --psm 11 --oem 3'
+            custom_config2 = r'-l eng+rus --psm 6 --oem 3'
             text = pytesseract.image_to_string(invert, config=custom_config)
-            if re.match(r"(^\d+\D+.+)", text):
-                 ocr_text.append(text)
+            text2 = pytesseract.image_to_string(invert, config=custom_config2)
+            text = text.replace("\n", ' ')
+            text2 = text2.replace("\n", ' ')
+            text_mass = text+text2
+            if re.match(r"^\w", text_mass):
+                 ocr_text.append(text_mass)
             else:
                 print(text)
+
     return ocr_text
 
 
 #for correct text (1.,2. ... n+1)
 def correct_text(text):
     text.reverse()
-    print(text)
-    text = str(text)
-    text = re.sub(r"\\n", ' ', text)
-    text = re.sub(r"[\]\[\—\"§|!|']", '', text)
-    text = re.sub(r", 9.+", '', text)
-    text = re.sub(r"}", ')', text)
-    text = re.sub(r"\s8{1}.+", '', text)
-    print(text)
-    surname = str(re.findall(r"(1\.\s+\S+[\s+|\w+\s+]+,)", text))
-    surname = re.sub(r"[,|\[\]'\"1\.]", '', surname)
-    print(surname)
-    name_father = str(re.findall(r"(2.+\s,\s)3.", text))
-    name_father = re.sub(r"[,|\[\]'\"2\.]", '', name_father)
+    text1 = str(text)
+    main_text = re.sub(r'[^\d\wа-яА-Я\s),\.\}]', '', text1)
+    main_text = re.sub(r'}', ')', main_text)
+    text_without_8 = re.sub(r'\s8{1}[\.\s].+', '', main_text)
 
-    date_birth = str(re.findall(r"3.\s[\d]+[\.]\d+.\d+", text))
+    surname = str(re.findall(r"(1\.\s+\S+[\s|\w\s]+)", text_without_8))
+    surname_rus = (re.sub(r"[^а-яА-Я\s]", '', surname)).strip()
+    surname_eng = str(re.findall(r"[A-Z]+", surname)[0])
+
+    name_father = str(re.findall(r"2\.\s+\D+,", text_without_8))
+    name_father_rus = (re.sub(r"[^а-яА-Я\s]", '', name_father)).strip()
+    namefather_eng = str(re.findall(r"[A-Z]+", name_father))
+    namefather_eng = re.sub(r"[,|\[\]'\"]", '', namefather_eng)
+
+    date_birth = str(re.findall(r"\s3[\.\s]+\d{2}\.\d{2}\.\d{4}", text_without_8)[0])
+    date_birth1 = re.sub(r"[,|\[\]'\"]", '', date_birth)
+    date_birth = str(re.findall(r"\d{2}.\d{2}.\d{4}", date_birth1))
     date_birth = re.sub(r"[,|\[\]'\"]", '', date_birth)
 
-    license_date = str(re.findall(r"4.\)\s\d+\.\d+.\d+", text))
+    license_date = str(re.findall(r"4[aа]\)\s\d+\.\d+.\d+", text_without_8))
+    license_date1 = re.sub(r"[,|\[\]'\"]", '', license_date)
+    license_date = str(re.findall(r"\d{2}.\d{2}.\d{4}", license_date1))
     license_date = re.sub(r"[,|\[\]'\"]", '', license_date)
+    
+    license_number = str(re.findall(r"\d{10}", text_without_8))
+    license_number = (re.sub(r"[,|\[\]'\"]", '', license_number)).strip()
 
-    license_number =  str(re.findall(r"5[\.|\s]\s.+", text))
-    license_number = re.sub(r"[,|\[\]'\"|5\.]", '', license_number)
-
-    data  = {"Surname": surname,
-        "Name_and_patronymic": name_father,
-        "Date_birth": date_birth,
-        "Date_license_date_expiration": license_date,
+    data  = {"surname_rus": surname_rus,
+        "surname_eng": surname_eng,
+        "firtsname_rus": name_father_rus,
+        "firstname_eng": namefather_eng,
+        "birthday": date_birth,
+        "date_license": license_date,
         "series_number": license_number
     }
 

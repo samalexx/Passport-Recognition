@@ -40,7 +40,6 @@ def find_rectangle(img):
         rect = cv2.minAreaRect(c)
         box = np.int0(cv2.boxPoints(rect))
         x,y,w,h = cv2.boundingRect(box)
-
         crop = img[y-5:y+h+5, x-5:x+w+5]
         return crop
     except cv2.error:
@@ -49,7 +48,7 @@ def find_rectangle(img):
 
 # contour find and draw in input image
 def draw_contours(crop):
-    img = crop[20:120, 0:350]
+    img = crop[40:120, 0:350]
 
     table = correct_skew1(img, 0.2, 10)
 
@@ -103,6 +102,7 @@ def recognize_text(rectangles_contour, table):
             text = pytesseract.image_to_string(invert, config=custom_config)
             text = text.replace("\n", '')
             text_ocr.append(text.capitalize())
+            print(text_ocr)
     return text_ocr
     
 
