@@ -266,7 +266,7 @@ def correct_text(text):
     main_text = re.sub(r'[^\d\wа-яА-Я\s),\.\}]', '', text1)
     main_text = re.sub(r'}', ')', main_text)
     text_without_8 = re.sub(r'\s8{1}[\.\s].+', '', main_text)
-
+    print(text_without_8)
     surname = str(re.findall(r"(1\.\s+\S+[\s|\w\s]+)", text_without_8))
     surname_rus = (re.sub(r"[^а-яА-Я\s]", '', surname)).strip()
     surname_eng = str(re.findall(r"[A-Z]+", surname)[0])
@@ -276,7 +276,7 @@ def correct_text(text):
     namefather_eng = str(re.findall(r"[A-Z]+", name_father))
     namefather_eng = re.sub(r"[,|\[\]'\"]", '', namefather_eng)
 
-    date_birth = str(re.findall(r"\s3[\.\s]+\d{2}\.\d{2}\.\d{4}", text_without_8)[0])
+    date_birth = str(re.findall(r"\s3[\.\s]+\d{2}\.\d{2}\.\d{4}", text_without_8))
     date_birth1 = re.sub(r"[,|\[\]'\"]", '', date_birth)
     date_birth = str(re.findall(r"\d{2}.\d{2}.\d{4}", date_birth1))
     date_birth = re.sub(r"[,|\[\]'\"]", '', date_birth)
