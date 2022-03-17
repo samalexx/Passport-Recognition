@@ -1,4 +1,8 @@
 .env/*
+.venv/*
+*.ipynb
+data/*
+__pycache__
 asdasdsad.ipynb
 workspace.code-workspace
 __pycache__/*
