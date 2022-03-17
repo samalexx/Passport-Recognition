@@ -1,9 +1,4 @@
-from ast import Index
-from datetime import date
-from tkinter import dnd
 import cv2
-from cv2 import THRESH_OTSU
-from cv2 import invert
 import numpy as np
 import imutils
 import pytesseract
@@ -37,7 +32,7 @@ else:
 
 @app.post("/predict/", tags=["Predict"], summary="Predict")
 async def upload(file: UploadFile = File(..., description='Выберите файл для загрузки',), 
-                 mode: str = Query("front", enum=["front", "back"], description='Choice doc template')):
+                 mode: str = Query("front", enum=["front", "back", "sts"], description='Choice doc template')):
     ext = file.filename
     if mode == 'front':
         # search extension in filename
@@ -78,6 +73,7 @@ async def upload(file: UploadFile = File(..., description='Выберите фа
         contents = await file.read()
         result = await back_side.side_main(contents)
         return result
+
 
 #Calculate degrees of image, and convert it
 def skew_angle(image):
