@@ -80,7 +80,7 @@ dict_keys = {"01":"Грузовой автомобиль бортовой",
 refine_net = load_refinenet_model(cuda=False)
 craft_net = load_craftnet_model(cuda=False)
 pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
-
+path = "models/FSRCNN_x4.pb"
 
 app = FastAPI()
 
