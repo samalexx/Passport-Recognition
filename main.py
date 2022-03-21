@@ -4,7 +4,8 @@ from craft_text_detector import (
     load_refinenet_model,
     get_prediction
 )
-
+import requests
+import json
 from matplotlib.pyplot import text
 import pytesseract
 import numpy as np
@@ -15,6 +16,7 @@ import io
 import cv2
 from fastapi import FastAPI, File, Query, UploadFile
 import uvicorn
+import re
 
 
 
@@ -29,8 +31,8 @@ async def upload(file: UploadFile = File(..., description='Выберите фа
 
     image = np.array(Image.open(io.BytesIO(data))) # can be filepath, PIL image or numpy array
 
-    img = cv2.resize(image, (2700, 3000), fx=0.5, fy=0.3)
-
+    img = cv2.resize(image, (2900, 3000), fx=0.5, fy=0.3)
+    img = img[0:1000, 100:3000]
     image = read_image(img)
 
     refine_net = load_refinenet_model(cuda=False)
@@ -64,10 +66,113 @@ async def upload(file: UploadFile = File(..., description='Выберите фа
         opening = cv2.morphologyEx(thresh1, cv2.MORPH_OPEN, kernel, iterations=1)
         invert = 255 - opening
         invert = cv2.copyMakeBorder(invert, 20,20,20,20, cv2.BORDER_CONSTANT, 3, (255,255,255))
-        text = pytesseract.image_to_string(invert, config = '--psm 6 --oem 3 -l rus+eng')
+        text = pytesseract.image_to_string(invert, config = '--psm 11 --oem 3 -l eng')
         text = text.replace("\n", ' ')
         ocr_text.append(text)
-    return ocr_text
+    print(ocr_text)
+    result = fix_text(ocr_text)
+    return result
+
+def fix_text(ocr_text):
+    text1 = str(ocr_text)
+    main_text = re.sub(r'[^А-Яа-я\w\,]', '', text1)
+    print(main_text)
+    vin_number = re.findall(r"VIN\,(.{0,17})", main_text)[0]
+    print(vin_number)
+    number_plate = re.findall(r"знак(.{0,9})", main_text)
+    data = get_vehicle(vin_number, number_plate)
+
+    return data
+
+def get_vehicle(vin_number, number_plate):
+    params = {'vin': vin_number,
+        'checkType':'history'}
+    
+    resp = requests.post("https://сервис.гибдд.рф/proxy/check/auto/history", data=params)
+
+    data = json.loads(resp.text)
+
+    items = data['RequestResult']['vehicle']
+
+    dict_keys = {"01":"Грузовой автомобиль бортовой",
+        "02":"Грузовой автомобиль шасси",
+        "03":"Грузовой автомобиль фургоны",
+        "04":"Грузовой автомобиль тягачи седельной",
+        "05":"Грузовой автомобиль самосвалы",
+        "06":"Грузовой автомобиль рефрижераторы",
+        "07":"Грузовой автомобиль цистерны",
+        "08":"Грузовой автомобиль с гидроманипулятором",
+        "09":"Грузовой автомобиль прочие",
+        "21":"Легковой автомобиль универсал",
+        "22":"Легковой автомобиль комби (хэтчбек)",
+        "23":"Легковой автомобиль седан",
+        "24":"Легковой автомобиль лимузин",
+        "25":"Легковой автомобиль купе",
+        "26":"Легковой автомобиль кабриолет",
+        "27":"Легковой автомобиль фаэтон",
+        "28":"Легковой автомобиль пикап",
+        "29":"Легковой автомобиль прочие",
+        "41":"Автобус длиной не более 5 м",
+        "42":"Автобус длиной более 5 м, но не более 8 м",
+        "43":"Автобус длиной более 8 м, но не более 12 м",
+        "44":"Автобус сочлененные длиной более 12 м",
+        "49":"Автобус прочие",
+        "51":"Специализированные автомобили автоцистерны",
+        "52":"Специализированные автомобили санитарные",
+        "53":"Специализированные автомобили автокраны",
+        "54":"Специализированные автомобили заправщики",
+        "55":"Специализированные автомобили мастерские",
+        "56":"Специализированные автомобили автопогрузчики",
+        "57":"Специализированные автомобили эвакуаторы",
+        "58":"Специализированные пассажирские транспортные средства",
+        "59":"Специализированные автомобили прочие",
+        "71":"Мотоциклы",
+        "72":"Мотороллеры и мотоколяски",
+        "73":"Мотовелосипеды и мопеды",
+        "74":"Мотонарты",
+        "80":"Прицепы самосвалы",
+        "81":"Прицепы к легковым автомобилям",
+        "82":"Прицепы общего назначения к грузовым автомобилям",
+        "83":"Прицепы цистерны",
+        "84":"Прицепы тракторные",
+        "85":"Прицепы вагоны-дома передвижные",
+        "86":"Прицепы со специализированными кузовами",
+        "87":"Прицепы трейлеры",
+        "88":"Прицепы автобуса",
+        "89":"Прицепы прочие",
+        "91":"Полуприцепы с бортовой платформой",
+        "92":"Полуприцепы самосвалы",
+        "93":"Полуприцепы фургоны",
+        "95":"Полуприцепы цистерны",
+        "99":"Полуприцепы прочие",
+        "31":"Трактора",
+        "32":"Самоходные машины и механизмы",
+        "33":"Трамваи",
+        "34":"Троллейбусы",
+        "35":"Велосипеды",
+        "36":"Гужевой транспорт",
+        "38":"Подвижной состав железных дорог",
+        "39":"Иной"}  
+
+    model = items['model']
+    vin = items['vin']
+    year = items['year']
+    category = items['category']
+    type = items['type']
+    type_ts = dict_keys.get(type)
+    engine_Hp = items['powerHp']
+    engine_powerKwt = items['powerKwt']
+    engine = f'{engine_powerKwt}/{engine_Hp}'
+    data = {
+        'number_plate':number_plate,
+        'vin': vin,
+        'model':model,
+        'type':type_ts,
+        'categoty':category,
+        'year':year,
+        'engine':engine
+    }
+    return data
 
 def correct_skew(image, delta=0.3, limit=10):
     def determine_score(arr, angle):
