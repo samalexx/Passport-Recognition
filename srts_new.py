@@ -6,6 +6,7 @@ from craft_text_detector import (
 )
 import requests
 import json
+import imutils
 from matplotlib.pyplot import text
 import pytesseract
 import numpy as np
@@ -26,52 +27,56 @@ pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tessera
 app = FastAPI()
 
 @app.post("/predict/", tags=["Predict"], summary="Predict")
-async def upload(file: UploadFile = File(..., description='Выберите файл для загрузки')):
+async def upload(file: UploadFile = File(..., description='Выберите файл для загрузки'),
+mode: str = Query("front", enum=["front", "back"], description='Choice doc template')):
     data = await file.read()
 
     image = np.array(Image.open(io.BytesIO(data))) # can be filepath, PIL image or numpy array
+    if mode == 'front':
+        img = cv2.resize(image, (2700, 3000), fx=0.5, fy=0.3)
+        image = read_image(img)
 
-    img = cv2.resize(image, (2900, 3000), fx=0.5, fy=0.3)
-    img = img[0:1000, 100:3000]
-    image = read_image(img)
 
-    refine_net = load_refinenet_model(cuda=False)
-    craft_net = load_craftnet_model(cuda=False)
+        refine_net = load_refinenet_model(cuda=False)
+        craft_net = load_craftnet_model(cuda=False)
 
-    # perform prediction
-    prediction_result = get_prediction(
-        image=image,
-        craft_net=craft_net,
-        refine_net=refine_net,
-        text_threshold=0.7,
-        link_threshold=0.4,
-        low_text=0.4,
-        cuda=False,
-        long_size=1280,
-    )
+        # perform prediction
+        prediction_result = get_prediction(
+            image=image,
+            craft_net=craft_net,
+            refine_net=refine_net,
+            text_threshold=0.7,
+            link_threshold=0.4,
+            low_text=0.4,
+            cuda=False,
+            long_size=1280,
+        )
 
-    # export heatmap, detection points, box visualization
-    ocr_text = []
-    print('start ocr')
-    idx = 0
-    for contour in prediction_result["boxes"]:
-        idx +=1
-        x,y,w,h = cv2.boundingRect(contour)
-        new_image = img[y-10:y+h+5, x-20:x+w]
-        new_image1 = correct_skew(new_image)
-        img2 = super_res(new_image1)
-        gray = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
-        thresh1 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
-        opening = cv2.morphologyEx(thresh1, cv2.MORPH_OPEN, kernel, iterations=1)
-        invert = 255 - opening
-        invert = cv2.copyMakeBorder(invert, 20,20,20,20, cv2.BORDER_CONSTANT, 3, (255,255,255))
-        text = pytesseract.image_to_string(invert, config = '--psm 11 --oem 3 -l eng')
-        text = text.replace("\n", ' ')
-        ocr_text.append(text)
-    print(ocr_text)
-    result = fix_text(ocr_text)
-    return result
+        # export heatmap, detection points, box visualization
+        ocr_text = []
+        print('start ocr')
+        idx = 0
+        for contour in prediction_result["boxes"]:
+            idx +=1
+            x,y,w,h = cv2.boundingRect(contour)
+            new_image = img[y-10:y+h+5, x-20:x+w]
+            new_image1 = correct_skew(new_image)
+            img2 = super_res(new_image1)
+            gray = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+            thresh1 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
+            opening = cv2.morphologyEx(thresh1, cv2.MORPH_OPEN, kernel, iterations=1)
+            invert = 255 - opening
+            invert = cv2.copyMakeBorder(invert, 20,20,20,20, cv2.BORDER_CONSTANT, 3, (255,255,255))
+            text = pytesseract.image_to_string(invert, config = '--psm 11 --oem 3 -l eng+rus')
+            text = text.replace("\n", ' ')
+            ocr_text.append(text)
+        print(ocr_text)
+        result = fix_text(ocr_text)
+        return result
+    elif mode == 'back':
+        result = lic_str(image)
+        return result
 
 def fix_text(ocr_text):
     text1 = str(ocr_text)
@@ -85,6 +90,7 @@ def fix_text(ocr_text):
     return data
 
 def get_vehicle(vin_number, number_plate):
+    print(vin_number)
     params = {'vin': vin_number,
         'checkType':'history'}
     
@@ -212,6 +218,67 @@ def super_res(img):
     result = sr.upsample(img)
 
     return result
+
+def lic_str(img):
+    bst_image= cv2.resize(img, (800, 1200))
+
+    blur = cv2.medianBlur(bst_image, 9)
+
+    edged = cv2.Canny(blur, 35, 210, 4)
+
+    accumEdged = np.zeros(bst_image.shape[:2], dtype="uint8")
+
+    accumEdged = cv2.bitwise_or(accumEdged, edged)
+
+    contours, _ = cv2.findContours(accumEdged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) 
+
+    idx = 0 
+    for con in contours:
+        x,y,w,h = cv2.boundingRect(con)
+        if len(con) > 300:
+            idx+=1
+            new_image = bst_image[y:y+h, x:x+w]
+
+    new_image1 = new_image[0:250, 0:1200]
+
+    gray = cv2.cvtColor(new_image1, cv2.COLOR_BGR2GRAY)
+    #preprocess image for best result
+    rectKernel = cv2.getStructuringElement(cv2.MORPH_RECT, (40, 40))
+    gray = cv2.GaussianBlur(gray, (7, 7), 0)
+    blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, rectKernel)
+    grad = cv2.Sobel(blackhat, ddepth=cv2.CV_32F, dx=1, dy=0, ksize=-1)
+    grad = np.absolute(grad)
+    (minVal, maxVal) = (np.min(grad), np.max(grad))
+    grad = (grad - minVal) / (maxVal - minVal)
+    grad = (grad * 255).astype("uint8")
+    grad = cv2.morphologyEx(grad, cv2.MORPH_CLOSE, rectKernel)
+    thresh = cv2.threshold(grad, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+
+    allContours = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)   
+    allContours = imutils.grab_contours(allContours)
+
+    idx=0
+
+    for contour in allContours:
+        x,y,w,h = cv2.boundingRect(contour)
+        if w > 250:
+            idx+=1
+            print(idx, ":", x,y,w,h)
+            # cv2.rectangle(new_image1, (x, y-10), (x + w, (y-10) + h), (36,255,12), 2)
+            # cv2.putText(new_image1, f'{idx}', (x, y+20), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,0,0), 2)
+            new_image = new_image1[y-10:(y-10)+h, x-10:x+w]
+            gray = cv2.cvtColor(new_image, cv2.COLOR_BGR2GRAY)
+            thresh1 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
+            opening = cv2.morphologyEx(thresh1, cv2.MORPH_OPEN, kernel, iterations=1)
+            invert = 255 - opening
+            custom_config2 = r'-l eng+rus --psm 6 --oem 3'
+            text2 = pytesseract.image_to_string(invert, config=custom_config2)
+            text2 = text2.replace("\n", ' ')
+            print(text2)
+            text2 = re.sub(r"[^\d№]+", '', text2)
+            print(text2)
+    return {'series':text2}
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))

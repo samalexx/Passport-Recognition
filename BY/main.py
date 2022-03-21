@@ -265,7 +265,7 @@ def correct_text(text):
     print(text_without_8)
     surname = str(re.findall(r"(1\.\s+\S+[\s|\w\s]+)", text_without_8))
     surname_rus = (re.sub(r"[^а-яА-Я\s]", '', surname)).strip()
-    surname_eng = str(re.findall(r"[A-Z]+", surname)[0])
+    surname_eng = str(re.findall(r"[A-Z]+", surname))
 
     name_father = str(re.findall(r"2\.\s+\D+,", text_without_8))
     name_father_rus = (re.sub(r"[^а-яА-Я\s]", '', name_father)).strip()
