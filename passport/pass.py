@@ -4,6 +4,7 @@ import numpy as np
 import pytesseract
 from PIL import Image
 import io
+import imutils
 from scipy.ndimage import interpolation as inter
 from craft_text_detector import (
     read_image,
@@ -16,12 +17,12 @@ from craft_text_detector import (
 )
 refine_net = load_refinenet_model(cuda=False)
 craft_net = load_craftnet_model(cuda=False)
+path = "models/FSRCNN_x4.pb"
 pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
 
 
-
 def text_block(image):
-    img = cv2.resize(image, (2700, 3000), fx=0.5, fy=0.3)
+    img = cv2.resize(image, (1000, 1200), fx=0.5, fy=0.3)
 
     # read image
     image = read_image(img)
@@ -41,6 +42,8 @@ def text_block(image):
                 cuda=False,
                 long_size=1280,
             )
+
+
     ocr_text = []
     print('start ocr')
     idx = 0
@@ -55,15 +58,33 @@ def text_block(image):
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
         opening = cv2.morphologyEx(thresh1, cv2.MORPH_OPEN, kernel, iterations=1)
         invert = 255 - opening
-        invert = cv2.copyMakeBorder(invert, 20,20,20,20, cv2.BORDER_CONSTANT, 3, (255,255,255))
-        text = pytesseract.image_to_string(invert, config = '--psm 11 --oem 3 -l rus')
-        text = text.replace("\n", ' ')
-        ocr_text.append(text)
+        ocr_text = []
+        result = recognize_text(invert, ocr_text)
+
+    return result
+
+
+def recognize_text(invert, ocr_text):
+    image = invert
+    cv2.imshow('ss', image)
+    height, width = image.shape[:2]
+
+
+    if height > width:
+        image = imutils.rotate(image, angle = 90)
+    cv2.imshow('ss', image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+    cstm_config = r"-l rus --psm 6 --oem 3"
+    text = pytesseract.image_to_string(image, config=cstm_config)
+    text = text.replace("\n", ' ')
+    ocr_text.append(text)
     print(ocr_text)
-    return(ocr_text)
+    return ocr_text
+    
+
 
 def super_res(img):
-    path = "models/FSRCNN_x4.pb"
     print('start super res')
     sr = cv2.dnn_superres.DnnSuperResImpl_create()
 
@@ -101,6 +122,6 @@ def correct_skew(image, delta=0.3, limit=10):
 
     return rotated
 
-image = np.array(Image.open('C:\Games\passport/20.jpeg')) # can be filepath, PIL image or numpy array
+image = np.array(Image.open('C:\Games\passport/9.jpeg')) # can be filepath, PIL image or numpy array
 
 result = text_block(image)
