@@ -3,6 +3,7 @@ from matplotlib.pyplot import text
 import numpy as np
 import pytesseract
 from PIL import Image
+import re
 import io
 import imutils
 from scipy.ndimage import interpolation as inter
@@ -22,7 +23,7 @@ pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tessera
 
 
 def text_block(image):
-    img = cv2.resize(image, (1000, 1200), fx=0.5, fy=0.3)
+    img = cv2.resize(image, (2700, 3200), fx=0.5, fy=0.3)
 
     # read image
     image = read_image(img)
@@ -40,7 +41,7 @@ def text_block(image):
                 link_threshold=0.4,
                 low_text=0.4,
                 cuda=False,
-                long_size=1280,
+                long_size=600,
             )
 
 
@@ -50,42 +51,62 @@ def text_block(image):
     for contour in prediction_result["boxes"]:
         idx +=1
         x,y,w,h = cv2.boundingRect(contour)
-        new_image = img[y-10:y+h+5, x-20:x+w]
+        new_image = img[y-10:y+h+5, x-10:x+w]
         new_image1 = correct_skew(new_image)
         img2 = super_res(new_image1)
+        height, width = img.shape[:2]     
         gray = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+        filename = 'C:\Games\passport\crop_pass/filename_%i.jpeg'%idx
+        cv2.imwrite(filename, gray)
         thresh1 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
         opening = cv2.morphologyEx(thresh1, cv2.MORPH_OPEN, kernel, iterations=1)
         invert = 255 - opening
-        ocr_text = []
-        result = recognize_text(invert, ocr_text)
-
+        bordur = cv2.copyMakeBorder(invert, 10,10,10,10, cv2.BORDER_CONSTANT, 1, (255,255,255))
+        cstm_config = r"-l rus+eng --psm 6 --oem 3"
+        text = pytesseract.image_to_string(bordur, config=cstm_config)
+        text = text.replace("\n", ' ')
+        ocr_text.append(text)
+    result = data_to_text(ocr_text)
+    print(result)
     return result
 
-
-def recognize_text(invert, ocr_text):
-    image = invert
-    cv2.imshow('ss', image)
-    height, width = image.shape[:2]
-
-
-    if height > width:
-        image = imutils.rotate(image, angle = 90)
-    cv2.imshow('ss', image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-    cstm_config = r"-l rus --psm 6 --oem 3"
-    text = pytesseract.image_to_string(image, config=cstm_config)
-    text = text.replace("\n", ' ')
-    ocr_text.append(text)
-    print(ocr_text)
-    return ocr_text
     
 
+def data_to_text(ocr_text):
+    text = str(ocr_text)
+    print(text)
+    text = re.sub(r"[^А-Яа-яA-Z\d\-\s\—\.]",'', text)
+    text = re.sub(r"\s+", ' ', text)
+    print(text)
+
+    try:
+        gender = re.findall(r"(муж|МУЖ|ЖЕН|жен)+", text)[0]
+    except:
+        gender = 'not find'
+    try:
+       issued_number = re.findall(r"\d{3}[—|-]\S{3}", text)[0]
+    except:
+        issued_number = 'not find'
+    try:
+        date_birth = re.findall(r"(\d{2}\.\d{2}\.\d{4})", text)[1]
+    except:
+        date_birth = 'not find'
+    try:
+        issued_date = re.findall(r"(\d{2}\.\d{2}\.\d{4})", text)[0]
+    except:
+        issued_date = ''
+
+    
+    data = {
+        "issued_date": issued_date, 
+        "division": issued_number,
+        "birthday": date_birth,
+        "gender": gender
+    }
+    return data
 
 def super_res(img):
-    print('start super res')
     sr = cv2.dnn_superres.DnnSuperResImpl_create()
 
     sr.readModel(path)
@@ -109,7 +130,7 @@ def correct_skew(image, delta=0.3, limit=10):
     scores = []
     angles = np.arange(-limit, limit + delta, delta)
     for angle in angles:
-        histogram, score = determine_score(thresh, angle)
+        _, score = determine_score(thresh, angle)
         scores.append(score)
 
     best_angle = angles[scores.index(max(scores))]
@@ -122,6 +143,6 @@ def correct_skew(image, delta=0.3, limit=10):
 
     return rotated
 
-image = np.array(Image.open('C:\Games\passport/9.jpeg')) # can be filepath, PIL image or numpy array
+image = np.array(Image.open('C:\Games\passport/27.jpeg')) # can be filepath, PIL image or numpy array
 
 result = text_block(image)
