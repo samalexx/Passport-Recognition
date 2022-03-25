@@ -13,13 +13,11 @@ from craft_text_detector import (
     load_craftnet_model,
     load_refinenet_model,
     get_prediction,
-    export_detected_regions,
-    export_extra_results,
-    empty_cuda_cache
 )
 refine_net = load_refinenet_model(cuda=False)
 craft_net = load_craftnet_model(cuda=False)
 path = "models/FSRCNN_x4.pb"
+sr = cv2.dnn_superres.DnnSuperResImpl_create()
 pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
 
 app = FastAPI()
@@ -28,19 +26,20 @@ app = FastAPI()
 async def upload(file: UploadFile = File(..., description='Выберите файл для загрузки')):
     data = await file.read()
 
-    image = np.array(Image.open(io.BytesIO(data))) # can be filepath, PIL image or numpy array # can be filepath, PIL image or numpy array
+    image = np.array(Image.open(io.BytesIO(data)))
+
     result = text_block(image)
+    
     return result
+
 def text_block(image):
     img = cv2.resize(image, (2700, 3200), fx=0.5, fy=0.3)
     # read image
     image = read_image(img)
 
     # load models
-    refine_net = load_refinenet_model(cuda=False)
-    craft_net = load_craftnet_model(cuda=False)
 
-    # perform prediction
+    # perform prediction 
     prediction_result = get_prediction(
                 image=image,
                 craft_net=craft_net,
@@ -61,36 +60,15 @@ def text_block(image):
     for contour in prediction_result["boxes"]:
         idx +=1
         x,y,w,h = cv2.boundingRect(contour)
+        new_image = img[y-10:y+h+5, x-10:x+w]
         if y < 1000:
-            new_image = img[y-10:y+h+5, x-10:x+w]
-            height, width = new_image.shape[:2]
-            if height > width:
-                new_image = cv2.rotate(new_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
-            new_image1 = correct_skew(new_image)
-            img2 = super_res(new_image1) 
-            gray = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
-            thresh1 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
-            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
-            opening = cv2.morphologyEx(thresh1, cv2.MORPH_OPEN, kernel, iterations=1)
-            invert = 255 - opening
-            bordur = cv2.copyMakeBorder(invert, 10,10,10,10, cv2.BORDER_CONSTANT, 1, (255,255,255))
+            bordur = preprocess_text_bocks(new_image)
             cstm_config = r"-l rus+eng --psm 6 --oem 3"
             text = pytesseract.image_to_string(bordur, config=cstm_config)
             text = text.replace("\n", ' ')
             ocr_text.append(text)
         else:
-            new_image = img[y-10:y+h+5, x-10:x+w]
-            height, width = new_image.shape[:2]
-            if height > width:
-                new_image = cv2.rotate(new_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
-            new_image1 = correct_skew(new_image)
-            img2 = super_res(new_image1) 
-            gray = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
-            thresh1 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
-            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
-            opening = cv2.morphologyEx(thresh1, cv2.MORPH_OPEN, kernel, iterations=1)
-            invert = 255 - opening
-            bordur = cv2.copyMakeBorder(invert, 10,10,10,10, cv2.BORDER_CONSTANT, 1, (255,255,255))
+            bordur = preprocess_text_bocks(new_image)
             cstm_config = r"-l rus+eng --psm 6 --oem 3"
             text = pytesseract.image_to_string(bordur, config=cstm_config)
             text = text.replace("\n", ' ')
@@ -98,9 +76,25 @@ def text_block(image):
     recognize_text_1 = text_recognize(ocr_text, ocr_text1)
     return recognize_text_1
     
+
+def preprocess_text_bocks(new_image):
+    height, width = new_image.shape[:2]
+    if height > width:
+        new_image = cv2.rotate(new_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    new_image1 = correct_skew(new_image)
+    img2 = super_res(new_image1) 
+    gray = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    thresh1 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
+    opening = cv2.morphologyEx(thresh1, cv2.MORPH_OPEN, kernel, iterations=1)
+    invert = 255 - opening
+    bordur = cv2.copyMakeBorder(invert, 10,10,10,10, cv2.BORDER_CONSTANT, 1, (255,255,255))
+    return bordur
+
+
 def text_recognize(ocr_text, ocr_text1):
-    del ocr_text[0]
-    text = str(ocr_text)
+    text = str(ocr_text[1:])
+    print(ocr_text[1:])
     text = re.sub(r"[^А-Яа-яA-Z\d\-\s\—\.]",'', text)
     text1 = str(ocr_text1)
     text1 = re.sub(r"[^А-Яа-яA-Z\d\-\s\—\.]",'', text1)
@@ -148,10 +142,10 @@ def recognize_fio(ocr_text):
         text = re.sub(r"\s{2,}", '',text)
         return text
     data = ocr_text
-    del data[0]
     result = list(map(recognize, data))
     result = list(filter(None, result))
     result = [x for x in result if len(x) > 2]
+
     def lower(text):
         text = text.title()
         return text
@@ -161,8 +155,8 @@ def recognize_fio(ocr_text):
 
     return FIO
 
+
 def super_res(img):
-    sr = cv2.dnn_superres.DnnSuperResImpl_create()
 
     sr.readModel(path)
 
@@ -171,6 +165,7 @@ def super_res(img):
     result = sr.upsample(img)
 
     return result
+
 
 def correct_skew(image, delta=0.6, limit=10):
     def determine_score(arr, angle):
