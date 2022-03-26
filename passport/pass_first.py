@@ -33,7 +33,7 @@ async def upload(file: UploadFile = File(..., description='Выберите фа
     return result
 
 def text_block(image):
-    img = cv2.resize(image, (2700, 3200), fx=0.5, fy=0.3)
+    img = cv2.resize(image, (2700, 3200))
     # read image
     image = read_image(img)
 
@@ -52,26 +52,18 @@ def text_block(image):
             )
 
 
-
     ocr_text = []
     ocr_text1 = []
-    print('start ocr')
     idx = 0
     for contour in prediction_result["boxes"]:
         idx +=1
         x,y,w,h = cv2.boundingRect(contour)
         new_image = img[y-10:y+h+5, x-10:x+w]
         if y < 1000:
-            bordur = preprocess_text_bocks(new_image)
-            cstm_config = r"-l rus+eng --psm 6 --oem 3"
-            text = pytesseract.image_to_string(bordur, config=cstm_config)
-            text = text.replace("\n", ' ')
+            text = preprocess_text_bocks(new_image)
             ocr_text.append(text)
         else:
-            bordur = preprocess_text_bocks(new_image)
-            cstm_config = r"-l rus+eng --psm 6 --oem 3"
-            text = pytesseract.image_to_string(bordur, config=cstm_config)
-            text = text.replace("\n", ' ')
+            text = preprocess_text_bocks(new_image)
             ocr_text1.append(text)
     recognize_text_1 = text_recognize(ocr_text, ocr_text1)
     return recognize_text_1
@@ -82,48 +74,54 @@ def preprocess_text_bocks(new_image):
     if height > width:
         new_image = cv2.rotate(new_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
     new_image1 = correct_skew(new_image)
+    cv2.imshow('s', new_image1)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
     img2 = super_res(new_image1) 
     gray = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
     thresh1 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
     opening = cv2.morphologyEx(thresh1, cv2.MORPH_OPEN, kernel, iterations=1)
     invert = 255 - opening
-    bordur = cv2.copyMakeBorder(invert, 10,10,10,10, cv2.BORDER_CONSTANT, 1, (255,255,255))
-    return bordur
+    border = cv2.copyMakeBorder(invert, 10,10,10,10, cv2.BORDER_CONSTANT, 1, (255,255,255))
+    cstm_config = r"-l rus+eng --psm 6 --oem 3"
+    text = pytesseract.image_to_string(border, config=cstm_config)
+    text = text.replace("\n", ' ')
+    return text
 
 
 def text_recognize(ocr_text, ocr_text1):
     text = str(ocr_text[1:])
-    print(ocr_text[1:])
     text = re.sub(r"[^А-Яа-яA-Z\d\-\s\—\.]",'', text)
     text1 = str(ocr_text1)
     text1 = re.sub(r"[^А-Яа-яA-Z\d\-\s\—\.]",'', text1)
     try:
         gender = re.findall(r"(муж|МУЖ|ЖЕН|жен)+", text1)[0]
-    except:
+    except IndexError:
         gender = 'Not found'
     try:
         issued_number = re.findall(r"\d{3}[—|-]\S{3}", text)[0]
-    except:
+    except IndexError:
         issued_number = 'Not found'
     try:
         issued_date = re.findall(r"(\d{2}\.\d{2}\.\d{4})", text)[0]
-    except:
+    except IndexError:
         issued_date = 'Not found'
     try:
         date_birth = re.findall(r"(\d{2}\.\d{2}\.\d{4})", text1)[0]
-    except:
+    except IndexError:
         date_birth = 'Not found'
     try:
         data_number = re.sub(r"['\[\]]", '', str(ocr_text))
         series = re.findall(r"\s\d{2}\s", data_number)
         series = re.sub(r"[^\d]",'',str(series))
         number = re.findall(r"\d{6}", str(data_number))[0]
-    except:
+    except IndexError:
         series = 'Not Found'
         number = 'Not Found'
     text1 = re.sub(r"[^А-Я\.]+", ' ', text)
     FIO = recognize_fio(ocr_text1)
+
     data = {
         "issued_date": issued_date, 
         "division": issued_number,
@@ -134,6 +132,7 @@ def text_recognize(ocr_text, ocr_text1):
         "series": series,
         "number":number
     }
+    
     return data
 
 def recognize_fio(ocr_text):
@@ -151,19 +150,14 @@ def recognize_fio(ocr_text):
         return text
     result = list(map(lower, result))
 
-    FIO = (' ').join(result[0:3])
 
-    return FIO
+    return result[0:3]
 
 
 def super_res(img):
-
     sr.readModel(path)
-
     sr.setModel("fsrcnn",4)
-
     result = sr.upsample(img)
-
     return result
 
 
