@@ -6,6 +6,7 @@ import io
 import os
 import uvicorn
 from PIL import Image
+import re
 from fastapi import FastAPI, File, Query, UploadFile
 import pytesseract
 from craft_text_detector import (
@@ -19,6 +20,14 @@ path = "models/FSRCNN_x4.pb"
 sr = cv2.dnn_superres.DnnSuperResImpl_create()
 refine_net = load_refinenet_model(cuda=False)
 craft_net = load_craftnet_model(cuda=False)
+
+"""
+Комментарий для себя:
+1)Доработать reg exp
+2)Переработать апи
+"""
+
+
 
 app = FastAPI()
 
@@ -77,7 +86,6 @@ def recognize_box(new_image):
         resize_image = image[y:y+h, x:x+w]
         # new_image1 = correct_skew(resize_image)
         gray = cv2.cvtColor(resize_image, cv2.COLOR_BGR2GRAY)
-    # Apply dilation and erosion to remove some noise
         # thresh1 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
         # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
         # opening = cv2.morphologyEx(thresh1, cv2.MORPH_OPEN, kernel, iterations=1)
@@ -89,8 +97,28 @@ def recognize_box(new_image):
         text = text.replace("\n", ' ')
         print(text)
         ocr_text.append(text)
-    return ocr_text
+        result = recognize_text(ocr_text)
+    return result
 
+def recognize_text(ocr_text):
+    text = str(ocr_text)
+    text = re.sub(r"[^А-Яа-я\d\-\s\—\.\\\:]",'',text)
+    region = re.findall(r"(Рег-н:\W+)Район", text)[0]
+    city = re.findall(r"(Пункт:\W+)Р-Н", text)[0]
+    street = re.findall(r"Улица:\W+", text)[0]
+    apartaments = re.findall(r"КВ\.\s+\d+", text)[0]
+    building = re.findall(r"КОРП\.\s+\d+",text)
+    house = re.findall(r"[д]\.\s+\d+", text)[0]
+    data = {
+            "region":region,
+            "city": city,
+            "district":"not found", 
+            "street":street, 
+            "house":house, 
+            "building":building, 
+            "flat":apartaments
+    }
+    return data
 
 def super_res(img):
 
