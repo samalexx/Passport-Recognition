@@ -2,78 +2,27 @@ import cv2
 import numpy as np
 import imutils
 import pytesseract
-import uvicorn
-from fastapi import FastAPI, File, Query, UploadFile
-import io
-import os
 from PIL import Image
-import uuid
-from pdf2image import convert_from_bytes
 import re
-import back_side 
-import platform
 from scipy.ndimage import interpolation as inter
-
-app = FastAPI()
-
-#select platform
-plt = platform.system()
-if plt == "Windows":
-    pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
-    poppler_path = r'C:/Python38/Lib/poppler/Library/bin'
-    temp_path = r'app/tmp'
-elif plt == "Linux":
-    pytesseract.pytesseract.tesseract_cmd = r'/usr/bin/tesseract'
-    poppler_path = None
-    temp_path = r'app/tmp'
-else:
-    print("Unidentified system")
+import io
 
 
-@app.post("/predict/", tags=["Predict"], summary="Predict")
-async def upload(file: UploadFile = File(..., description='Выберите файл для загрузки',), 
-                 mode: str = Query("front", enum=["front", "back", "sts"], description='Choice doc template')):
-    ext = file.filename
-    if mode == 'front':
-        # search extension in filename
-        input_filename = re.findall(r"(jpg|png|jpeg|pdf)$", ext)
-        data = await file.read()
-        # if filename have extension like pdf
-        if input_filename == ['pdf']:
-            images = convert_from_bytes(data, dpi=300, single_file=True)
-            for page in images:
-                image = np.array(page)
-                # aligning the photo to the contour
-                angled = skew_angle(image)
-                # perspective correction 
-                image_resize = perspective_correction(angled)
-                # preprocessing pictures for text blocks
-                tresh_image = preprocess_image(image_resize)
-                # get text from text box 
-                text = recognize_text(image_resize, tresh_image)
-                # get the recognized text and return it with a response from the server
-                end_text = correct_text(text)
-            return end_text
-        # else filename have extension like .jpg,.jpeg,.png
-        else:    
-            image = np.array(Image.open(io.BytesIO(data)))
-            # aligning the photo to the contour
-            angled = skew_angle(image)
-            # perspective correction 
-            image_resize = perspective_correction(angled)
-            # preprocessing pictures for text blocks
-            tresh_image = preprocess_image(image_resize)
-            # get text from text box 
-            text = recognize_text(image_resize, tresh_image)
-            # get the recognized text and return it with a response from the server
-            end_text = correct_text(text)
-            return end_text
-    elif mode == 'back': 
-        file.filename = f"{uuid.uuid4()}.jpg"
-        contents = await file.read()
-        result = await back_side.side_main(contents)
-        return result
 
+
+def main_front_by(data):
+    image = np.array(Image.open(io.BytesIO(data)))
+    # aligning the photo to the contour
+    angled = skew_angle(image)
+    # perspective correction 
+    image_resize = perspective_correction(angled)
+    # preprocessing pictures for text blocks
+    tresh_image = preprocess_image(image_resize)
+    # get text from text box 
+    text = recognize_text(image_resize, tresh_image)
+    # get the recognized text and return it with a response from the server
+    end_text = correct_text(text)
+    return end_text
 
 #Calculate degrees of image, and convert it
 def skew_angle(image):
@@ -295,11 +244,3 @@ def correct_text(text):
     }
 
     return data
-
-
-
-# main 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8005))
-    uvicorn.run("main:app", host='0.0.0.0', port=port,
-                  log_level="info", reload=True, workers=1)

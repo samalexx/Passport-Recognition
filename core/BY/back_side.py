@@ -2,14 +2,12 @@ import re
 import numpy as np
 import pytesseract
 import cv2
-from kat_null import kat_is_zero
+from core.BY.kat_null import kat_is_zero
 from PIL import Image
 import io
-from main import correct_skew1
-
 from scipy.ndimage import interpolation as inter
 
-async def side_main(contents):
+def side_main(contents):
 
     image = np.array(Image.open(io.BytesIO(contents)))
 
@@ -131,3 +129,32 @@ def text_correction(text, img):
         else:
             data2 = kat_is_zero(img)
             return data2
+
+def correct_skew1(image, delta=0.6, limit=5):
+    #score
+    def determine_score(arr, angle):
+        data = inter.rotate(arr, angle, reshape=False, order=0)
+        histogram = np.sum(data, axis=1)
+        score = np.sum((histogram[1:] - histogram[:-1]) ** 2)
+        return histogram, score
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1] 
+
+    #find image angle
+    scores = []
+    angles = np.arange(-limit, limit + delta, delta)
+    for angle in angles:
+        _, score = determine_score(thresh, angle)
+        scores.append(score)
+
+    best_angle = angles[scores.index(max(scores))]
+
+    #rotate image 
+    (h, w) = image.shape[:2]
+    center = (w // 2, h // 2)
+    M = cv2.getRotationMatrix2D(center, best_angle, 1.0)
+    rotated = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC, \
+              borderMode=cv2.BORDER_REPLICATE)
+
+    return rotated

@@ -1,13 +1,9 @@
 import cv2
-from matplotlib.pyplot import gray
 from scipy.ndimage import interpolation as inter
 import numpy as np
 import io
-import os
-import uvicorn
 from PIL import Image
 import re
-from fastapi import FastAPI, File, Query, UploadFile
 import pytesseract
 from craft_text_detector import (
     read_image,
@@ -15,7 +11,6 @@ from craft_text_detector import (
     load_refinenet_model,
     get_prediction,
 )
-pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
 path = "models/FSRCNN_x4.pb"
 sr = cv2.dnn_superres.DnnSuperResImpl_create()
 refine_net = load_refinenet_model(cuda=False)
@@ -28,13 +23,7 @@ craft_net = load_craftnet_model(cuda=False)
 """
 
 
-
-app = FastAPI()
-
-@app.post("/predict/", tags=["Predict"], summary="Predict")
-async def upload(file: UploadFile = File(..., description='Выберите файл для загрузки')):
-    data = await file.read()
-
+def passport_registration(data):
     image11 = np.array(Image.open(io.BytesIO(data)))
 
     result = find_cont(image11)
@@ -55,8 +44,6 @@ def find_cont(img):
         x,y,w,h = cv2.boundingRect(c)
         if 300 < w < 1000 and 100 < h < 800 and y > 50 and x < 100:
             print(idx, x,y,w,h)
-            # cv2.rectangle(img,(x,y),(x+w,y+h),(0,255,0),2)
-            # cv2.putText(img, f'{idx}', (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,0,0), 2)
             new_image = img[y:y+h, x:x+w]
             img2 = super_res(new_image)
             result = recognize_box(img2)
@@ -76,24 +63,25 @@ def recognize_box(new_image):
                 link_threshold=0.4,
                 low_text=0.4,
                 cuda=False,
-                long_size=550,
+                long_size=400,
             )
+    boxes = prediction_result["boxes"]
     idx = 0
     ocr_text = []
-    for contour in prediction_result["boxes"]:
+    for contour in boxes[2:]:
         idx +=1
         x,y,w,h = cv2.boundingRect(contour)
         resize_image = image[y:y+h, x:x+w]
         # new_image1 = correct_skew(resize_image)
-        gray = cv2.cvtColor(resize_image, cv2.COLOR_BGR2GRAY)
+        # gray = cv2.cvtColor(resize_image, cv2.COLOR_BGR2GRAY)
         # thresh1 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
         # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
         # opening = cv2.morphologyEx(thresh1, cv2.MORPH_OPEN, kernel, iterations=1)
         # invert = 255 - opening
         filename  = 'C:\Games\crop_pass/file_%i.jpeg'%idx 
-        cv2.imwrite(filename, gray)
-        cstm_config = r"-l rus --psm 6 --oem 3" 
-        text = pytesseract.image_to_string(gray, config=cstm_config)
+        cv2.imwrite(filename, resize_image)
+        cstm_config = r"-l rus+eng --psm 6 --oem 1" 
+        text = pytesseract.image_to_string(resize_image, config=cstm_config)
         text = text.replace("\n", ' ')
         print(text)
         ocr_text.append(text)
@@ -102,23 +90,10 @@ def recognize_box(new_image):
 
 def recognize_text(ocr_text):
     text = str(ocr_text)
+    print(text)
     text = re.sub(r"[^А-Яа-я\d\-\s\—\.\\\:]",'',text)
-    region = re.findall(r"(Рег-н:\W+)Район", text)[0]
-    city = re.findall(r"(Пункт:\W+)Р-Н", text)[0]
-    street = re.findall(r"Улица:\W+", text)[0]
-    apartaments = re.findall(r"КВ\.\s+\d+", text)[0]
-    building = re.findall(r"КОРП\.\s+\d+",text)
-    house = re.findall(r"[д]\.\s+\d+", text)[0]
-    data = {
-            "region":region,
-            "city": city,
-            "district":"not found", 
-            "street":street, 
-            "house":house, 
-            "building":building, 
-            "flat":apartaments
-    }
-    return data
+
+    return 'ss'
 
 def super_res(img):
 
@@ -151,10 +126,4 @@ def correct_skew(image, delta=0.6, limit=10):
     M = cv2.getRotationMatrix2D(center, best_angle, 1.0)
     rotated = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC, \
         borderMode=cv2.BORDER_REPLICATE)
-
     return rotated
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8000))
-    uvicorn.run("main:app", host='0.0.0.0', port=port,
-                  log_level="info", reload=True, workers=1)

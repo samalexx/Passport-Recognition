@@ -4,9 +4,6 @@ import pytesseract
 from PIL import Image
 import re
 import io
-import os
-from fastapi import FastAPI, File, Query, UploadFile
-import uvicorn
 from scipy.ndimage import interpolation as inter
 from craft_text_detector import (
     read_image,
@@ -18,14 +15,8 @@ refine_net = load_refinenet_model(cuda=False)
 craft_net = load_craftnet_model(cuda=False)
 path = "models/FSRCNN_x4.pb"
 sr = cv2.dnn_superres.DnnSuperResImpl_create()
-pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
 
-app = FastAPI()
-
-@app.post("/predict/", tags=["Predict"], summary="Predict")
-async def upload(file: UploadFile = File(..., description='Выберите файл для загрузки')):
-    data = await file.read()
-
+def main_pass_first(data):
     image = np.array(Image.open(io.BytesIO(data)))
 
     result = text_block(image)
@@ -74,9 +65,6 @@ def preprocess_text_bocks(new_image):
     if height > width:
         new_image = cv2.rotate(new_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
     new_image1 = correct_skew(new_image)
-    cv2.imshow('s', new_image1)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
     img2 = super_res(new_image1) 
     gray = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
     thresh1 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
@@ -123,6 +111,7 @@ def text_recognize(ocr_text, ocr_text1):
     FIO = recognize_fio(ocr_text1)
 
     data = {
+
         "issued_date": issued_date, 
         "division": issued_number,
         "birthday": date_birth,
@@ -131,6 +120,7 @@ def text_recognize(ocr_text, ocr_text1):
         "fio" : FIO ,
         "series": series,
         "number":number
+
     }
     
     return data
@@ -150,8 +140,7 @@ def recognize_fio(ocr_text):
         return text
     result = list(map(lower, result))
 
-
-    return result[0:3]
+    return result[:3]
 
 
 def super_res(img):
@@ -186,8 +175,3 @@ def correct_skew(image, delta=0.6, limit=10):
             borderMode=cv2.BORDER_REPLICATE)
 
     return rotated
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8000))
-    uvicorn.run("main:app", host='0.0.0.0', port=port,
-                  log_level="info", reload=True, workers=1)
