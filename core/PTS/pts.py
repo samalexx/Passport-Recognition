@@ -25,18 +25,19 @@ def pts_start(data):
         cuda=False,
         long_size=1280
     )
-
-
+ 
     idx = 0
-    
-    for contour in prediction_result["boxes"]:
+    ocr_text = []
+    boxes = prediction_result["boxes"]
+    for box in boxes[1:]:
         idx+=1
-        x,y,w,h = cv2.boundingRect(contour)
-        print(x,y,w,h)
-        image = cv2.rectangle(image, (x, y), (x + w, y + h), (36,255,12), 1)
-        cv2.putText(image, f'{idx}', (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
-        cv2.imwrite('/content/1231232312.jpeg',image)
+        x,y,w,h = cv2.boundingRect(box)
         resize_image = image[y:y+h, x:x+w]
-        text = pytesseract.image_to_string(image, config=CSTM_CONFIG)
-        print(text)
-    return text
+        text = pytesseract.image_to_string(resize_image, config=CSTM_CONFIG)
+        ocr_text.append(text.replace("\n", ' '))
+    result = recognize_text(ocr_text)
+    return ocr_text
+
+
+def recognize_text(ocr_text):
+    print(ocr_text)
