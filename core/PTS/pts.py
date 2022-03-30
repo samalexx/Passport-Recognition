@@ -40,4 +40,4 @@ def pts_start(data):
 
 
 def recognize_text(ocr_text):
-    print(ocr_text)
+    pass
