@@ -3,8 +3,11 @@ from craft_text_detector import (read_image, load_craftnet_model, load_refinenet
 from PIL import Image
 import numpy as np
 import io
+from core.PTS.text_recognizer import get_data
 import cv2
 import pytesseract
+path = "models/FSRCNN_x4.pb"
+sr = cv2.dnn_superres.DnnSuperResImpl_create()
 CSTM_CONFIG = r'-l eng+rus --psm 6 --oem 1'
 refine_net = load_refinenet_model(cuda=False)
 craft_net = load_craftnet_model(cuda=False)
@@ -33,11 +36,14 @@ def pts_start(data):
         idx+=1
         x,y,w,h = cv2.boundingRect(box)
         resize_image = image[y:y+h, x:x+w]
-        text = pytesseract.image_to_string(resize_image, config=CSTM_CONFIG)
+        super_image = super_res(resize_image)
+        text = pytesseract.image_to_string(super_image, config=CSTM_CONFIG)
         ocr_text.append(text.replace("\n", ' '))
-    result = recognize_text(ocr_text)
+    # result = get_data(ocr_text)
     return ocr_text
 
-
-def recognize_text(ocr_text):
-    pass
+def super_res(img):
+    sr.readModel(path)
+    sr.setModel("fsrcnn",4)
+    result = sr.upsample(img)
+    return result
