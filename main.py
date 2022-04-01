@@ -41,6 +41,7 @@ async def upload(file: UploadFile = File(..., description='Выберите фа
         result_by_back = back_side.side_main(data)
         return result_by_back
     if template == '2' and mode == 'front':
+        print(file.filename)
         result_srts_front = srts_front.main_srts_front(data)
         return result_srts_front
     if template == '2' and mode == 'back':

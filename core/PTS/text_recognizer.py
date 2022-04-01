@@ -63,16 +63,15 @@ dict_keys = {"01":"Грузовой автомобиль бортовой",
         "38":"Подвижной состав железных дорог",
         "39":"Иной"}
 def get_data(ocr_text):
-    ocr_text = list(map(subchik, ocr_text))
-    ocr_text = list(filter(None, ocr_text))
-    print(ocr_text)
+    texting = list(map(subchik, ocr_text))
+    texting = list(filter(None, texting))
 
-    vin = list(map(find_vin, ocr_text))
+    vin = list(map(find_vin, texting))
     vin_result = list(filter(None, vin))
 
-    print(ocr_text)
+    print(texting)
 
-    data = get_vehicle(vin_result[0][0], ocr_text)
+    data = get_vehicle(vin_result[0][0], texting)
     return data
 
 def find_vin(ocr_text):
@@ -84,9 +83,10 @@ def find_number_series(ocr_text):
     return number
 
 def subchik(ocr_text):
-    text = re.sub(r"[^А-Яа-яA-Za-z\d\-\s\—\.\(\)\,]", '', ocr_text)
+    text = re.sub(r"[^A-Za-z\d\-\s\—\.\(\)\,]", '', ocr_text)
     text = str(text)
     text = text.strip()
+    print(text)
     return text
 
 def get_number(ocr_text):
@@ -107,9 +107,10 @@ def get_vehicle(vin_number, ocr_text):
     resp = requests.post("https://сервис.гибдд.рф/proxy/check/auto/history", data=params)
 
     data = json.loads(resp.text)
-
-    items = data['RequestResult']['vehicle']
-
+    try:
+        items = data['RequestResult']['vehicle']
+    except IndexError and KeyError:
+        return {'In image not found VIN':'In image not found VIN number'}
 
     number = get_number(ocr_text)
     model = items['model']

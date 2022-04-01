@@ -109,7 +109,7 @@ def main_srts_front(data):
         opening = cv2.morphologyEx(thresh1, cv2.MORPH_OPEN, kernel, iterations=1)
         invert = 255 - opening
         invert = cv2.copyMakeBorder(invert, 20,20,20,20, cv2.BORDER_CONSTANT, 3, (255,255,255))
-        text = pytesseract.image_to_string(invert, config = '--psm 11 --oem 3 -l eng+rus')
+        text = pytesseract.image_to_string(invert, config = '--psm 11 --oem 3 -l eng')
         text = text.replace("\n", ' ')
         ocr_text.append(text)
     print(ocr_text)
@@ -129,15 +129,16 @@ def fix_text(ocr_text):
 
 def get_vehicle(vin_number, number_plate):
     print(vin_number)
-    params = {'vin': 'JHMCU2660CC206563',
+    params = {'vin': vin_number ,
         'checkType':'history'}
     
     resp = requests.post("https://сервис.гибдд.рф/proxy/check/auto/history", data=params)
 
     data = json.loads(resp.text)
-
-    items = data['RequestResult']['vehicle']
-
+    try:
+        items = data['RequestResult']['vehicle']
+    except KeyError and IndexError:
+        {'In image not found VIN':'In image not found VIN number'}
     model = items['model']
     vin = items['vin']
     year = items['year']
@@ -171,7 +172,7 @@ def correct_skew(image, delta=0.3, limit=10):
     scores = []
     angles = np.arange(-limit, limit + delta, delta)
     for angle in angles:
-        histogram, score = determine_score(thresh, angle)
+        _, score = determine_score(thresh, angle)
         scores.append(score)
 
     best_angle = angles[scores.index(max(scores))]
@@ -185,7 +186,6 @@ def correct_skew(image, delta=0.3, limit=10):
     return rotated
 
 def super_res(img):
-    print('start super res')
     sr = cv2.dnn_superres.DnnSuperResImpl_create()
 
     sr.readModel(path)

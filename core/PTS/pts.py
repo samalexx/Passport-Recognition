@@ -8,7 +8,7 @@ import cv2
 import pytesseract
 path = "models/FSRCNN_x4.pb"
 sr = cv2.dnn_superres.DnnSuperResImpl_create()
-CSTM_CONFIG = r'-l eng+rus --psm 6 --oem 1'
+CSTM_CONFIG = r'-l eng --psm 6 --oem 1'
 refine_net = load_refinenet_model(cuda=False)
 craft_net = load_craftnet_model(cuda=False)
 
@@ -39,8 +39,8 @@ def pts_start(data):
         super_image = super_res(resize_image)
         text = pytesseract.image_to_string(super_image, config=CSTM_CONFIG)
         ocr_text.append(text.replace("\n", ' '))
-    # result = get_data(ocr_text)
-    return ocr_text
+    result = get_data(ocr_text)
+    return result
 
 def super_res(img):
     sr.readModel(path)
