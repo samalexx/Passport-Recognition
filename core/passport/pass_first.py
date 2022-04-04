@@ -15,6 +15,8 @@ refine_net = load_refinenet_model(cuda=False)
 craft_net = load_craftnet_model(cuda=False)
 path = "models/FSRCNN_x4.pb"
 sr = cv2.dnn_superres.DnnSuperResImpl_create()
+sr.readModel(path)
+sr.setModel("fsrcnn",4)
 
 def main_pass_first(data):
     image = np.array(Image.open(io.BytesIO(data)))
@@ -65,7 +67,7 @@ def preprocess_text_bocks(new_image):
     if height > width:
         new_image = cv2.rotate(new_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
     new_image1 = correct_skew(new_image)
-    img2 = super_res(new_image1) 
+    img2 = sr.upsample(new_image1) 
     gray = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
     thresh1 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
@@ -141,13 +143,6 @@ def recognize_fio(ocr_text):
     result = list(map(lower, result))
 
     return result[:3]
-
-
-def super_res(img):
-    sr.readModel(path)
-    sr.setModel("fsrcnn",4)
-    result = sr.upsample(img)
-    return result
 
 
 def correct_skew(image, delta=0.6, limit=10):

@@ -66,12 +66,12 @@ def get_data(ocr_text):
     texting = list(map(subchik, ocr_text))
     texting = list(filter(None, texting))
 
-    vin = list(map(find_vin, texting))
-    vin_result = list(filter(None, vin))
+    find_vin_text = re.findall(r"[A-Z0-9]{10,17}", str(ocr_text))[0]
+    print(find_vin_text)
 
     print(texting)
 
-    data = get_vehicle(vin_result[0][0], texting)
+    data = get_vehicle(find_vin_text, texting)
     return data
 
 def find_vin(ocr_text):
@@ -97,7 +97,7 @@ def get_number(ocr_text):
 
 def get_date(ocr_text):
     text = str(ocr_text)
-    date = re.findall(r"[0-9]{2}\.[0-9]{2}\.[0-9]{4}", text)
+    date = re.findall(r"[0-9]{2}\.[0-9]{2}\.[0-9]{4}", text)[0]
     return(date)
 
 def get_vehicle(vin_number, ocr_text):
@@ -112,25 +112,18 @@ def get_vehicle(vin_number, ocr_text):
     except IndexError and KeyError:
         return {'In image not found VIN':'In image not found VIN number'}
 
-    number = get_number(ocr_text)
-    model = items['model']
-    vin = items['vin']
-    year = items['year']
-    category = items['category']
     type = items['type']
-    type_ts = dict_keys.get(type)
     engine_Hp = items['powerHp']
     engine_powerKwt = items['powerKwt']
     engine = f'({engine_powerKwt}){engine_Hp}'
-    date = get_date(ocr_text)
     data = {
-        'number': number,
-        'vin': vin,
-        'model':model,
-        'type':type_ts,
-        'categoty':category,
-        'year':year,
+        'number': get_number(ocr_text),
+        'vin': items['vin'],
+        'model':items['model'],
+        'type':dict_keys.get(type),
+        'categoty':items['category'],
+        'year':items['year'],
         'engine':engine,
-        'date':date[0]
+        'date':get_date(ocr_text)
     }
     return data

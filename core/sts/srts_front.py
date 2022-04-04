@@ -1,9 +1,4 @@
-from craft_text_detector import (
-    read_image,
-    load_craftnet_model,
-    load_refinenet_model,
-    get_prediction
-)
+from craft_text_detector import (read_image, load_craftnet_model, load_refinenet_model, get_prediction)
 import requests
 import json
 import pytesseract
@@ -13,6 +8,10 @@ from scipy.ndimage import interpolation as inter
 from PIL import Image
 import cv2
 import re
+path = "models/FSRCNN_x4.pb"
+sr = cv2.dnn_superres.DnnSuperResImpl_create()
+sr.readModel(path)
+sr.setModel("fsrcnn",4)
 dict_keys = {"01":"Грузовой автомобиль бортовой",
         "02":"Грузовой автомобиль шасси",
         "03":"Грузовой автомобиль фургоны",
@@ -74,7 +73,6 @@ dict_keys = {"01":"Грузовой автомобиль бортовой",
         "39":"Иной"}
 refine_net = load_refinenet_model(cuda=False)
 craft_net = load_craftnet_model(cuda=False)
-path = "models/FSRCNN_x4.pb"
 
 
 def main_srts_front(data):
@@ -102,7 +100,7 @@ def main_srts_front(data):
         x,y,w,h = cv2.boundingRect(contour)
         new_image = img[y-10:y+h+5, x-20:x+w]
         new_image1 = correct_skew(new_image)
-        img2 = super_res(new_image1)
+        img2 = sr.upsample(new_image1)
         gray = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
         thresh1 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
@@ -184,15 +182,4 @@ def correct_skew(image, delta=0.3, limit=10):
               borderMode=cv2.BORDER_REPLICATE)
 
     return rotated
-
-def super_res(img):
-    sr = cv2.dnn_superres.DnnSuperResImpl_create()
-
-    sr.readModel(path)
-
-    sr.setModel("fsrcnn",4)
-
-    result = sr.upsample(img)
-
-    return result
 
