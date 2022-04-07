@@ -35,7 +35,7 @@ async def upload(file: UploadFile = File(..., description='Выберите фа
         mode: str = Query("front", enum=["front", "back"], description='Choice doc template')):
     data = await file.read()
     if template == '1' and mode == 'front':
-        result_by_front = BY_front.main_front_by(data) 
+        result_by_front = BY_front.by_start(data) 
         return result_by_front
     if template == '1' and mode == 'back':
         result_by_back = back_side.side_main(data)
