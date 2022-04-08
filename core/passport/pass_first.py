@@ -110,8 +110,9 @@ def text_recognize(ocr_text, ocr_text1):
         series = 'Not Found'
         number = 'Not Found'
     text1 = re.sub(r"[^А-Я\.]+", ' ', text)
-    FIO = recognize_fio(ocr_text1)
-
+    
+    FIO = recognize_fio(ocr_text1)[0:3]
+    FIO = re.sub(r'[^А-Яа-яёЁA-Za-z\s]', '', str(FIO))
     data = {
 
         "issued_date": issued_date, 
@@ -141,8 +142,8 @@ def recognize_fio(ocr_text):
         text = text.title()
         return text
     result = list(map(lower, result))
-
-    return result[:3]
+    print(result)
+    return result
 
 
 def correct_skew(image, delta=0.6, limit=10):

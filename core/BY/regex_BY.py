@@ -16,8 +16,8 @@ def regex_main(data):
         "surname_eng": surname[1],
         "firtsname": surname[2],
         'birthday':date_birthday[0][0],
-        'series':date_birthday[1][0],
-        'series': series_number[0][0]
+        'series': series_number[0][0],
+        'data_license':date_birthday[1][0]
     }
     
     return data

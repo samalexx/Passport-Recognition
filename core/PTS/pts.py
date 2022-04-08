@@ -6,7 +6,6 @@ import io
 from scipy.ndimage import interpolation as inter
 from core.PTS.text_recognizer import get_data
 import cv2
-import time
 import easyocr
 path = "models/FSRCNN_x4.pb"
 sr = cv2.dnn_superres.DnnSuperResImpl_create()
@@ -20,7 +19,6 @@ craft_net = load_craftnet_model(cuda=False)
 def pts_start(data):
     image = np.array(Image.open(io.BytesIO(data)))
 
-    t0 = time.time()
     h,w = image.shape[:2]
     print(h,w)
     if w > 800 and h > 1200:
@@ -48,10 +46,8 @@ def pts_start(data):
           resize_image = img[y:y+h, x:x+w] # this needs to run only once to load the model into memory
           result = reader.readtext(resize_image, detail=0)
           ocr_text.append(result)
-      t1 = time.time()
-      total = t1-t0
+
       result = get_data(ocr_text)
-      print(total)
       return result
     return result
 
