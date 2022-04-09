@@ -1,16 +1,20 @@
+from unittest import result
 from craft_text_detector import (read_image, load_craftnet_model, load_refinenet_model, get_prediction)
 import requests
 import json
 import pytesseract
 import numpy as np
 import io
+from fake_useragent import UserAgent
 from scipy.ndimage import interpolation as inter
 from PIL import Image
 import cv2
 import re
+import easyocr
 path = "models/FSRCNN_x4.pb"
 sr = cv2.dnn_superres.DnnSuperResImpl_create()
 sr.readModel(path)
+reader = easyocr.Reader(['en'], gpu=False)
 sr.setModel("fsrcnn",4)
 dict_keys = {"01":"Грузовой автомобиль бортовой",
         "02":"Грузовой автомобиль шасси",
@@ -73,11 +77,12 @@ dict_keys = {"01":"Грузовой автомобиль бортовой",
         "39":"Иной"}
 refine_net = load_refinenet_model(cuda=False)
 craft_net = load_craftnet_model(cuda=False)
-
+cstm_config = r"-l eng+frn --psm 10 --oem 3 tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+ua = UserAgent()
 
 def main_srts_front(data):
     image = np.array(Image.open(io.BytesIO(data))) # can be filepath, PIL image or numpy array
-    img = cv2.resize(image, (2700, 3000), fx=0.5, fy=0.3)
+    img = cv2.resize(image, (3100, 3500), fx=0.5, fy=0.3)
     image = read_image(img)
     # perform prediction
     prediction_result = get_prediction(
@@ -88,74 +93,77 @@ def main_srts_front(data):
         link_threshold=0.4,
         low_text=0.4,
         cuda=False,
-        long_size=1280,
+        long_size=560,
     )
 
     # export heatmap, detection points, box visualization
-    ocr_text = []
     print('start ocr')
-    idx = 0
-    for contour in prediction_result["boxes"]:
-        idx +=1
-        x,y,w,h = cv2.boundingRect(contour)
-        new_image = img[y-10:y+h+5, x-20:x+w]
-        new_image1 = correct_skew(new_image)
-        img2 = sr.upsample(new_image1)
-        gray = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
-        thresh1 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
-        opening = cv2.morphologyEx(thresh1, cv2.MORPH_OPEN, kernel, iterations=1)
-        invert = 255 - opening
-        invert = cv2.copyMakeBorder(invert, 20,20,20,20, cv2.BORDER_CONSTANT, 3, (255,255,255))
-        text = pytesseract.image_to_string(invert, config = '--psm 11 --oem 3 -l eng')
-        text = text.replace("\n", ' ')
-        ocr_text.append(text)
-    print(ocr_text)
-    result = fix_text(ocr_text)
+    ocr_text = []
+    ocr_text1 = []
+    boxes = prediction_result["boxes"]
+    for box in boxes[4:]:
+        x,y,w,h = cv2.boundingRect(box)
+        resize_image = image[y:y+h, x:x+w]
+        new_image1 = correct_skew(resize_image)
+        new_image_sr = sr.upsample(new_image1)
+        gray = cv2.cvtColor(new_image_sr, cv2.COLOR_BGR2GRAY)
+        result_easy = reader.readtext(gray, detail=0)
+        result_tes = pytesseract.image_to_string(gray,config=cstm_config)
+        ocr_text.append(result_easy)
+        ocr_text1.append(result_tes)
+    
+    result_text = ocr_text+ocr_text1
+
+    result = recognize_text(result_text)
+
     return result
 
-def fix_text(ocr_text):
-    text1 = str(ocr_text)
-    main_text = re.sub(r'[^А-Яа-я\w\,]', '', text1)
-    print(main_text)
-    vin_number = re.findall(r"VIN\,(.{0,17})", main_text)
-    print(vin_number)
-    number_plate = re.findall(r"знак(.{0,9})", main_text)
-    data = get_vehicle(vin_number, number_plate)
 
-    return data
 
-def get_vehicle(vin_number, number_plate):
-    print(vin_number)
-    params = {'vin': vin_number ,
-        'checkType':'history'}
-    
-    resp = requests.post("https://сервис.гибдд.рф/proxy/check/auto/history", data=params)
+def recognize_text(tes_easy):
+    print('start recognize text')
+    def get_vin(data):
+        date_birth = re.findall(r"[A-Z0-9]{15,17}", str(data))
+        return date_birth
 
-    data = json.loads(resp.text)
-    try:
-        items = data['RequestResult']['vehicle']
-    except KeyError and IndexError:
-        {'In image not found VIN':'In image not found VIN number'}
-    model = items['model']
-    vin = items['vin']
-    year = items['year']
-    category = items['category']
-    type = items['type']
-    type_ts = dict_keys.get(type)
-    engine_Hp = items['powerHp']
-    engine_powerKwt = items['powerKwt']
-    engine = f'{engine_powerKwt}/{engine_Hp}'
-    data = {
-        'number_plate':number_plate,
-        'vin': vin,
-        'model':model,
-        'type':type_ts,
-        'categoty':category,
-        'year':year,
-        'engine':engine
-    }
-    return data
+    series_number = list(map(get_vin, tes_easy))
+    texting = list(filter(None, series_number))
+    result = get_vehicle(texting)
+    return result
+
+
+
+def get_vehicle(data):
+    print(data)
+    for vin in data:
+        print(vin)
+        params = {'vin': vin[0],
+            'checkType':'history',
+            'User-agent':ua.random}
+        resp = requests.post("https://сервис.гибдд.рф/proxy/check/auto/history", data=params)
+
+        if resp.status_code == 200:
+
+            data = json.loads(resp.text)
+
+            items = data['RequestResult']['vehicle']
+
+
+            type = items['type']
+            engine_Hp = items['powerHp']
+            engine_powerKwt = items['powerKwt']
+            data = {
+                'number': 'number',
+                'vin': items['vin'],
+                'model': items['model'],
+                'type':dict_keys.get(type),
+                'categoty': items['category'],
+                'year': items['year'],
+                'engine': f'({engine_powerKwt}){engine_Hp}',
+            }
+            return data
+        else:
+            return {'Image error':'The number could not be recognized'}
 
 def correct_skew(image, delta=0.3, limit=10):
     def determine_score(arr, angle):
