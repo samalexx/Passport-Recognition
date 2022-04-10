@@ -1,5 +1,4 @@
-from craft_text_detector import (read_image, load_craftnet_model, load_refinenet_model, get_prediction,
-)
+from craft_text_detector import (read_image, load_craftnet_model, load_refinenet_model, get_prediction,)
 from PIL import Image
 import numpy as np
 import io
@@ -7,9 +6,11 @@ from scipy.ndimage import interpolation as inter
 from core.PTS.text_recognizer import get_data
 import cv2
 import easyocr
+import pytesseract
 path = "models/FSRCNN_x4.pb"
 sr = cv2.dnn_superres.DnnSuperResImpl_create()
-reader = easyocr.Reader(['en'], gpu=True, recog_network='latin_g1')
+reader = easyocr.Reader(['en'], gpu=False)
+cstm_config = r"-l eng+frn --psm 10 --oem 3 tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 sr.readModel(path)
 sr.setModel("fsrcnn",4)
 refine_net = load_refinenet_model(cuda=False)
@@ -22,34 +23,37 @@ def pts_start(data):
     h,w = image.shape[:2]
     print(h,w)
     if w > 800 and h > 1200:
-      img = cv2.resize(image, (3100, 3500))
-      image = read_image(img)
+        img = cv2.resize(image, (3100, 3500))
+        image = read_image(img)
+        prediction_result = get_prediction(
+            image=image,
+            craft_net=craft_net,
+            refine_net=refine_net,
+            text_threshold=0.9,
+            link_threshold=0.4,
+            low_text=0.4,
+            cuda=False,
+            long_size=1280
+        )
+        ocr_text = []
+        ocr_text1 = []
+        boxes = prediction_result["boxes"]
+        for box in boxes[1:]:
+            x,y,w,h = cv2.boundingRect(box)
+            resize_image = img[y:y+h, x:x+w]
+            new_image1 = correct_skew(resize_image)
+            new_image_sr = sr.upsample(new_image1)
+            gray = cv2.cvtColor(new_image_sr, cv2.COLOR_BGR2GRAY)
+            result_easy = reader.readtext(gray, detail=0)
+            result_tes = pytesseract.image_to_string(gray,config=cstm_config)
+            ocr_text.append(result_easy)
+            ocr_text1.append(result_tes)
 
-
-      prediction_result = get_prediction(
-          image=image,
-          craft_net=craft_net,
-          refine_net=refine_net,
-          text_threshold=0.9,
-          link_threshold=0.4,
-          low_text=0.4,
-          cuda=True,
-          long_size=1280
-      )
-
-      idx = 0
-      ocr_text = []
-      boxes = prediction_result["boxes"]
-      for box in boxes[1:]:
-          idx+=1
-          x,y,w,h = cv2.boundingRect(box)
-          resize_image = img[y:y+h, x:x+w] # this needs to run only once to load the model into memory
-          result = reader.readtext(resize_image, detail=0)
-          ocr_text.append(result)
-
-      result = get_data(ocr_text)
-      return result
-    return result
+        result_text = ocr_text+ocr_text1
+        result = get_data(result_text)
+        return result
+    else:
+        return {'Size error':'Image dimension is too small'}
 
 
 def correct_skew(image, delta=0.3, limit=10):

@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 import re
+from fake_useragent import UserAgent
 import requests
 import json
+
+ua = UserAgent()
 
 dict_keys = {"01":"Грузовой автомобиль бортовой",
         "02":"Грузовой автомобиль шасси",
@@ -62,32 +65,17 @@ dict_keys = {"01":"Грузовой автомобиль бортовой",
         "36":"Гужевой транспорт",
         "38":"Подвижной состав железных дорог",
         "39":"Иной"}
-def get_data(ocr_text):
-    texting = list(map(subchik, ocr_text))
-    texting = list(filter(None, texting))
+def get_data(tes_easy):
+    print('start recognize text')
+    def get_vin(data):
+        date_birth = re.findall(r"[A-Z0-9]{15,17}", str(data))
+        return date_birth
 
-    find_vin_text = re.findall(r"[A-Z0-9]{10,17}", str(ocr_text))[0]
-    print(find_vin_text)
+    series_number = list(map(get_vin, tes_easy))
+    texting = list(filter(None, series_number))
+    result = get_vehicle(texting, tes_easy)
+    return result
 
-    print(texting)
-
-    data = get_vehicle(find_vin_text, texting)
-    return data
-
-def find_vin(ocr_text):
-    vin = re.findall(r"[A-Z]\w{16}", ocr_text)
-    return vin
-
-def find_number_series(ocr_text):
-    number = str(re.findall(r"\d{6}", ocr_text))
-    return number
-
-def subchik(ocr_text):
-    text = re.sub(r"[^A-Za-z\d\-\s\—\.\(\)\,]", '', ocr_text)
-    text = str(text)
-    text = text.strip()
-    print(text)
-    return text
 
 def get_number(ocr_text):
     str = ocr_text[0:3]
@@ -100,30 +88,30 @@ def get_date(ocr_text):
     date = re.findall(r"[0-9]{2}\.[0-9]{2}\.[0-9]{4}", text)[0]
     return(date)
 
-def get_vehicle(vin_number, ocr_text):
-    params = {'vin': vin_number,
-        'checkType':'history'}
-    
-    resp = requests.post("https://сервис.гибдд.рф/proxy/check/auto/history", data=params)
-
-    data = json.loads(resp.text)
-    try:
-        items = data['RequestResult']['vehicle']
-    except IndexError and KeyError:
-        return {'In image not found VIN':'In image not found VIN number'}
-
-    type = items['type']
-    engine_Hp = items['powerHp']
-    engine_powerKwt = items['powerKwt']
-    engine = f'({engine_powerKwt}){engine_Hp}'
-    data = {
-        'number': get_number(ocr_text),
-        'vin': items['vin'],
-        'model':items['model'],
-        'type':dict_keys.get(type),
-        'categoty':items['category'],
-        'year':items['year'],
-        'engine':engine,
-        'date':get_date(ocr_text)
-    }
-    return data
+def get_vehicle(data, ocr_text):
+    for vin in data:
+        print(vin)
+        params = {'vin': vin[0],
+            'checkType':'history',
+            'User-agent':ua.random}
+        resp = requests.post("https://сервис.гибдд.рф/proxy/check/auto/history", data=params)
+        if resp.status_code == 200:
+            data = json.loads(resp.text)
+            items = data['RequestResult']['vehicle']
+            type = items['type']
+            engine_Hp = items['powerHp']
+            engine_powerKwt = items['powerKwt']
+            engine = f'({engine_powerKwt}){engine_Hp}'
+            data = {
+                'number': get_number(ocr_text),
+                'vin': items['vin'],
+                'model':items['model'],
+                'type':dict_keys.get(type),
+                'categoty':items['category'],
+                'year':items['year'],
+                'engine':engine,
+                'date':get_date(ocr_text)
+            }
+            return data
+        else:
+            return {'In image not found VIN':'In image not found VIN number'}

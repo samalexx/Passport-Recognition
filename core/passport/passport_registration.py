@@ -11,16 +11,13 @@ from craft_text_detector import (
     load_refinenet_model,
     get_prediction,
 )
+
 path = "models/FSRCNN_x4.pb"
 sr = cv2.dnn_superres.DnnSuperResImpl_create()
+sr.readModel(path)
+sr.setModel("fsrcnn",4)
 refine_net = load_refinenet_model(cuda=False)
 craft_net = load_craftnet_model(cuda=False)
-
-"""
-Комментарий для себя:
-1)Доработать reg exp
-2)Переработать апи
-"""
 
 
 def passport_registration(data):
@@ -45,7 +42,7 @@ def find_cont(img):
         if 300 < w < 1000 and 100 < h < 800 and y > 50 and x < 100:
             print(idx, x,y,w,h)
             new_image = img[y:y+h, x:x+w]
-            img2 = super_res(new_image)
+            img2 = sr.upsample(new_image)
             result = recognize_box(img2)
     return result
 
@@ -93,15 +90,7 @@ def recognize_text(ocr_text):
     print(text)
     text = re.sub(r"[^А-Яа-я\d\-\s\—\.\\\:]",'',text)
 
-    return 'ss'
-
-def super_res(img):
-
-    sr.readModel(path)
-    sr.setModel("fsrcnn",4)
-    result = sr.upsample(img)
-
-    return result
+    return text
 
 def correct_skew(image, delta=0.6, limit=10):
     def determine_score(arr, angle):

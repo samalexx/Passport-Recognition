@@ -81,16 +81,17 @@ def preprocess_text_bocks(new_image):
 
 
 def text_recognize(ocr_text, ocr_text1):
+    print(ocr_text, ocr_text1)
     text = str(ocr_text[1:])
     text = re.sub(r"[^А-Яа-яA-Z\d\-\s\—\.]",'', text)
     text1 = str(ocr_text1)
     text1 = re.sub(r"[^А-Яа-яA-Z\d\-\s\—\.]",'', text1)
     try:
-        gender = re.findall(r"(муж|МУЖ|ЖЕН|жен)+", text1)[0]
+        gender = re.findall(r"(муж|МУЖ|ЖЕН|жен|ЖеН)+", text1)[0]
     except IndexError:
         gender = 'Not found'
     try:
-        issued_number = re.findall(r"\d{3}[—|-]\S{3}", text)[0]
+        issued_number = re.findall(r"\S{0,3}[—|-]\S{0,3}", text)[0]
     except IndexError:
         issued_number = 'Not found'
     try:
@@ -110,9 +111,11 @@ def text_recognize(ocr_text, ocr_text1):
         series = 'Not Found'
         number = 'Not Found'
     text1 = re.sub(r"[^А-Я\.]+", ' ', text)
+    text1 = re.sub(r"\.", "", text1)
     
     FIO = recognize_fio(ocr_text1)[0:3]
     FIO = re.sub(r'[^А-Яа-яёЁA-Za-z\s]', '', str(FIO))
+    FIO = re.sub(r"(Муж|Мух|Жен)+", '', str(FIO))
     data = {
 
         "issued_date": issued_date, 

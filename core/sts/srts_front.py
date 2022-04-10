@@ -1,4 +1,3 @@
-from unittest import result
 from craft_text_detector import (read_image, load_craftnet_model, load_refinenet_model, get_prediction)
 import requests
 import json
@@ -79,6 +78,8 @@ refine_net = load_refinenet_model(cuda=False)
 craft_net = load_craftnet_model(cuda=False)
 cstm_config = r"-l eng+frn --psm 10 --oem 3 tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 ua = UserAgent()
+
+
 
 def main_srts_front(data):
     image = np.array(Image.open(io.BytesIO(data))) # can be filepath, PIL image or numpy array
