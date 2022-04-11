@@ -19,9 +19,8 @@ sr.readModel(path)
 sr.setModel("fsrcnn",4)
 
 def main_pass_first(data):
-    image = np.array(Image.open(io.BytesIO(data)))
 
-    result = text_block(image)
+    result = text_block(data)
     
     return result
 

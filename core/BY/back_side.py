@@ -9,9 +9,8 @@ from scipy.ndimage import interpolation as inter
 
 def side_main(contents):
 
-    image = np.array(Image.open(io.BytesIO(contents)))
+    image = cv2.resize(contents, (790, 499))
 
-    image = cv2.resize(image, (790, 499))
 
     crop_image = find_rectangle(image)
 

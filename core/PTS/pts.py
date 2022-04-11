@@ -18,7 +18,7 @@ craft_net = load_craftnet_model(cuda=False)
 
 
 def pts_start(data):
-    image = np.array(Image.open(io.BytesIO(data)))
+    image = data
 
     h,w = image.shape[:2]
     print(h,w)

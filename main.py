@@ -13,7 +13,8 @@ from core.passport import pass_first, passport_registration
 from core.PTS import pts
 from pdf2image import convert_from_bytes
 import platform
-
+import re
+from pdf2image import convert_from_bytes 
 
 
 plt = platform.system()
@@ -34,27 +35,35 @@ async def upload(file: UploadFile = File(..., description='Выберите фа
         template: str = Query("Водительское удостворение", enum=[1,2,3,4], description='1 - Водительское удостоверение, 2 - СТС, 3 - Паспорт, 4 - ПТС'), 
         mode: str = Query("front", enum=["front", "back"], description='Choice doc template')):
     data = await file.read()
+    ext = file.filename
+    input_filename = re.findall(r"(jpg|png|jpeg|pdf)$", ext)
+    if input_filename == ['pdf']:
+        image = convert_from_bytes(data, dpi=300, first_page=1, last_page=1)
+        for page in image:
+            image11 = np.array(page)
+    else:
+        image11 = np.array(Image.open(io.BytesIO(data)))
     if template == '1' and mode == 'front':
-        result_by_front = BY_front.by_start(data) 
+        result_by_front = BY_front.by_start(image11) 
         return result_by_front
     if template == '1' and mode == 'back':
-        result_by_back = back_side.side_main(data)
+        result_by_back = back_side.side_main(image11)
         return result_by_back
     if template == '2' and mode == 'front':
         print(file.filename)
-        result_srts_front = srts_front.main_srts_front(data)
+        result_srts_front = srts_front.main_srts_front(image11)
         return result_srts_front
     if template == '2' and mode == 'back':
-        result_sts = sts.sts_main(data)
+        result_sts = sts.sts_main(image11)
         return result_sts
     if template == '3' and mode == 'front':
-        result_passport = pass_first.main_pass_first(data)
+        result_passport = pass_first.main_pass_first(image11)
         return result_passport
     if template == '3' and mode == 'back':
-        result_registration = passport_registration.passport_registration(data)
+        result_registration = passport_registration.passport_registration(image11)
         return result_registration
     if template == '4':
-        result_pts = pts.pts_start(data)
+        result_pts = pts.pts_start(image11)
         return result_pts
 # main 
 if __name__ == '__main__':

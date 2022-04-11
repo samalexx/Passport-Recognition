@@ -82,8 +82,7 @@ ua = UserAgent()
 
 
 def main_srts_front(data):
-    image = np.array(Image.open(io.BytesIO(data))) # can be filepath, PIL image or numpy array
-    img = cv2.resize(image, (3100, 3500), fx=0.5, fy=0.3)
+    img = cv2.resize(data, (3100, 3500), fx=0.5, fy=0.3)
     image = read_image(img)
     # perform prediction
     prediction_result = get_prediction(
@@ -142,18 +141,13 @@ def get_vehicle(data):
             'checkType':'history',
             'User-agent':ua.random}
         resp = requests.post("https://сервис.гибдд.рф/proxy/check/auto/history", data=params)
-
         if resp.status_code == 200:
-
             data = json.loads(resp.text)
-
             items = data['RequestResult']['vehicle']
-
-
             type = items['type']
             engine_Hp = items['powerHp']
             engine_powerKwt = items['powerKwt']
-            data = {
+            data_top = {
                 'number': 'number',
                 'vin': items['vin'],
                 'model': items['model'],
@@ -162,7 +156,7 @@ def get_vehicle(data):
                 'year': items['year'],
                 'engine': f'({engine_powerKwt}){engine_Hp}',
             }
-            return data
+            return data_top
         else:
             return {'Image error':'The number could not be recognized'}
 

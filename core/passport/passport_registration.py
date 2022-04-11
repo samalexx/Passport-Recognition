@@ -21,9 +21,8 @@ craft_net = load_craftnet_model(cuda=False)
 
 
 def passport_registration(data):
-    image11 = np.array(Image.open(io.BytesIO(data)))
 
-    result = find_cont(image11)
+    result = find_cont(data)
 
     return result
 

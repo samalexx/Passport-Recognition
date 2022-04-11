@@ -18,7 +18,7 @@ craft_net = load_craftnet_model(cuda=False)
 
 
 def by_start(data):
-    image = np.array(Image.open(io.BytesIO(data)))
+    image = data
 
     h,w = image.shape[:2]
     print(h,w)
@@ -41,7 +41,6 @@ def by_start(data):
     boxes = prediction_result["boxes"]
     for box in boxes[1:]:
         x,y,w,h = cv2.boundingRect(box)
-        print(x,y,w,h)
         if y > 130:
             resize_image = image[y:y+h, x:x+w] # this needs to run only once to load the model into memory
             custom_config = r'-l rus+eng --psm 6 --oem 3'

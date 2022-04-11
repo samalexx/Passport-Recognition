@@ -10,7 +10,6 @@ def regex_main(data):
 
 
     surname = list(map(get_name_surname, data))
-    print(surname)
     data = {
         "surname_rus": surname[0],
         "surname_eng": surname[1],
@@ -23,7 +22,6 @@ def regex_main(data):
     return data
 
 def get_name_surname(data):
-    print(data)
     text = re.sub(r"[^А-Яа-яёЁA-Za-z\s]",'',data)
     print(text)
     return text

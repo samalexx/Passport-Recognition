@@ -8,7 +8,7 @@ import imutils
 from scipy.ndimage import interpolation as inter
 
 def sts_main(data):
-    image = np.array(Image.open(io.BytesIO(data)))
+    image = data
     bst_image= cv2.resize(image, (800, 1200))
 
     blur = cv2.medianBlur(bst_image, 9)
