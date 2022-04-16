@@ -3,8 +3,6 @@ import numpy as np
 import pytesseract
 import cv2
 from core.BY.kat_null import kat_is_zero
-from PIL import Image
-import io
 from scipy.ndimage import interpolation as inter
 
 def side_main(contents):

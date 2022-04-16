@@ -1,13 +1,7 @@
 from craft_text_detector import (read_image, load_craftnet_model, load_refinenet_model, get_prediction,
 )
 import cv2
-import numpy as np
-import imutils
 import pytesseract
-from PIL import Image
-import re
-from scipy.ndimage import interpolation as inter
-import io
 from core.BY.regex_BY import regex_main
 path = "models/FSRCNN_x4.pb"
 sr = cv2.dnn_superres.DnnSuperResImpl_create()
@@ -44,7 +38,6 @@ def by_start(data):
         if y > 130:
             resize_image = image[y:y+h, x:x+w] # this needs to run only once to load the model into memory
             custom_config = r'-l rus+eng --psm 6 --oem 3'
-            custom_config2 = r'-l eng+rus --psm 6 --oem 3'
             text = pytesseract.image_to_string(resize_image, config=custom_config)
             text = text.replace("\n", ' ')
             ocr_text.append(text)

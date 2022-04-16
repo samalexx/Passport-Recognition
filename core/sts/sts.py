@@ -53,16 +53,17 @@ def sts_main(data):
         if w > 250:
             idx+=1
             print(idx, ":", x,y,w,h)
-            # cv2.rectangle(new_image1, (x, y-10), (x + w, (y-10) + h), (36,255,12), 2)
-            # cv2.putText(new_image1, f'{idx}', (x, y+20), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,0,0), 2)
+            
             new_image = new_image1[y-10:(y-10)+h, x-10:x+w]
             gray = cv2.cvtColor(new_image, cv2.COLOR_BGR2GRAY)
             thresh1 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
             kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1))
             opening = cv2.morphologyEx(thresh1, cv2.MORPH_OPEN, kernel, iterations=1)
             invert = 255 - opening
+
             custom_config2 = r'-l eng+rus --psm 6 --oem 3'
             text2 = pytesseract.image_to_string(invert, config=custom_config2)
+            
             text2 = text2.replace("\n", ' ')
             print(text2)
             text2 = re.sub(r"[^\d№]+", '', text2)

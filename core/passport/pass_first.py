@@ -1,9 +1,7 @@
 import cv2
 import numpy as np
 import pytesseract
-from PIL import Image
 import re
-import io
 from scipy.ndimage import interpolation as inter
 from craft_text_detector import (
     read_image,
@@ -26,12 +24,8 @@ def main_pass_first(data):
 
 def text_block(image):
     img = cv2.resize(image, (2700, 3200))
-    # read image
     image = read_image(img)
 
-    # load models
-
-    # perform prediction 
     prediction_result = get_prediction(
                 image=image,
                 craft_net=craft_net,

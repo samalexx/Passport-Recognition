@@ -96,7 +96,7 @@ def main_srts_front(data):
         long_size=560,
     )
 
-    # export heatmap, detection points, box visualization
+    
     print('start ocr')
     ocr_text = []
     ocr_text1 = []
