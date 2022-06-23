@@ -8,7 +8,6 @@ def regex_main(data):
     date_birthday = list(map(get_birthday, data))
     date_birthday = list(filter(None, date_birthday))
 
-
     surname = list(map(get_name_surname, data))
     data = {
         "surname_rus": surname[0],
@@ -22,6 +21,7 @@ def regex_main(data):
     return data
 
 def get_name_surname(data):
+    text = re.sub(r"DRIVING LICENCE", '', data)
     text = re.sub(r"[^А-Яа-яёЁA-Za-z\s]",'',data)
     print(text)
     return text

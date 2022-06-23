@@ -1,12 +1,12 @@
 from ast import Pass
-from unittest import result
+from unittest    import result
 import numpy as np
 import pytesseract
 import uvicorn
 from fastapi import FastAPI, File, Query, UploadFile
 import io
 import os
-from PIL import Image
+from PIL import Image   
 from core.BY import back_side, BY_front
 from core.sts import sts, srts_front
 from core.passport import pass_first, passport_registration
@@ -32,7 +32,7 @@ app = FastAPI()
 
 @app.post("/predict/", tags=["Predict"], summary="Predict")
 async def upload(file: UploadFile = File(..., description='Выберите файл для загрузки',), 
-        template: str = Query("Водительское удостворение", enum=[1,2,3,4], description='1 - Водительское удостоверение, 2 - СТС, 3 - Паспорт, 4 - ПТС'), 
+        template: str = Query("Водительское удостворение", enum=[1,2], description='1 - Водительское удостоверение, 2 - Паспорт'), 
         mode: str = Query("front", enum=["front", "back"], description='Choice doc template')):
     data = await file.read()
     ext = file.filename
@@ -49,17 +49,17 @@ async def upload(file: UploadFile = File(..., description='Выберите фа
     if template == '1' and mode == 'back':
         result_by_back = back_side.side_main(image11)
         return result_by_back
-    if template == '2' and mode == 'front':
+    if template == '3' and mode == 'front':
         print(file.filename)
         result_srts_front = srts_front.main_srts_front(image11)
         return result_srts_front
-    if template == '2' and mode == 'back':
+    if template == '3' and mode == 'back':
         result_sts = sts.sts_main(image11)
         return result_sts
-    if template == '3' and mode == 'front':
+    if template == '2' and mode == 'front':
         result_passport = pass_first.main_pass_first(image11)
         return result_passport
-    if template == '3' and mode == 'back':
+    if template == '2' and mode == 'back':
         result_registration = passport_registration.passport_registration(image11)
         return result_registration
     if template == '4':
