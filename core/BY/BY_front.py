@@ -36,7 +36,7 @@ def by_start(data):
     for box in boxes[1:]:
         x,y,w,h = cv2.boundingRect(box)
         if y > 130:
-            resize_image = image[y:y+h, x:x+w] # this needs to run only once to load the model into memory
+            resize_image = image[y:y+h, x:x+w]
             custom_config = r'-l rus+eng --psm 6 --oem 3'
             text = pytesseract.image_to_string(resize_image, config=custom_config)
             text = text.replace("\n", ' ')
